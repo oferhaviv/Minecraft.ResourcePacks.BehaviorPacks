@@ -1,16 +1,18 @@
 import * as mc from "@minecraft/server";
 import { ModalFormData } from "@minecraft/server-ui";
-const {world, system} = mc;
-const DynDef = mc.DynamicPropertiesDefinition;
 
+
+//#region Static Rules
 /* =========================
    Constants / Static Rules
 ========================= */
 
+const { world, system } = mc;
+const DynDef = mc.DynamicPropertiesDefinition;
 const TOOL = "minecraft:iron_hoe";
 const DEBUG = true; // dev-only console logs (independent of per-player Debug level)
 const USAGE_MESSAGE =
-  '§aHi Please use:\n\t ".hg settings" for setting dialog\n\t ".hg restore" to restore the values to default';
+  '§a[Harvest Guard] Hi Please use:\n     ".hg settings" for setting dialog.\n     ".hg restore" to restore the values to default.\n     ".hg show settings" will show all settings as found in the settings dialog.';
 
 // Player Dynamic Property key (JSON string)
 const HG_SETTINGS_KEY = "hg_settings";
@@ -51,10 +53,9 @@ const GUARDED = {
     "minecraft:sweet_berry_bush": { rule: "growth", state: "growth", mature: 3 },
   },
 };
+//#endregion 
 
-/* =========================
-   Settings Model (per-player)
-========================= */
+//#region Settings Model (per-player)
 
 const DEFAULT_SETTINGS = {
   enabled: true,
@@ -88,7 +89,12 @@ function cloneDefaultSettings() {
 
 // Merge saved settings into defaults (safe migration)
 function mergeSettings(defaults, saved) {
-  if (!saved || typeof saved !== "object") return defaults;
+  if (!saved || typeof saved !== "object") {
+    sdbg("mergeSettings: saved invalid -> returning defaults");
+    return defaults;
+  }
+
+  sdbg(`mergeSettings IN saved=${JSON.stringify(saved)}`);
 
   const out = cloneDefaultSettings();
 
@@ -113,31 +119,47 @@ function mergeSettings(defaults, saved) {
     }
   }
 
+  sdbg(`mergeSettings OUT out=${JSON.stringify(out)}`);
   return out;
 }
 
 function getSettings(player) {
   try {
     const raw = player.getDynamicProperty(HG_SETTINGS_KEY);
+    sdbg(`getSettings player=${player?.name ?? "?"} rawType=${typeof raw} raw=${String(raw).slice(0, 200)}`);
+
     if (typeof raw !== "string" || raw.length === 0) {
+      sdbg("getSettings -> using defaults (no raw string)");
       return cloneDefaultSettings();
     }
+
     const parsed = JSON.parse(raw);
-    return mergeSettings(DEFAULT_SETTINGS, parsed);
+    sdbg(`getSettings parsed keys=${Object.keys(parsed ?? {}).join(",")}`);
+
+    const merged = mergeSettings(DEFAULT_SETTINGS, parsed);
+    sdbg(`getSettings merged=${JSON.stringify(merged)}`);
+
+    return merged;
   } catch (e) {
-    // if anything goes wrong, fail-open to defaults
+    sdbg(`getSettings ERROR -> defaults. err=${e}`);
     return cloneDefaultSettings();
   }
 }
 
 function saveSettings(player, settings) {
   try {
-    player.setDynamicProperty(HG_SETTINGS_KEY, JSON.stringify(settings));
+    const str = JSON.stringify(settings);
+    sdbg(`saveSettings player=${player?.name ?? "?"} jsonLen=${str.length} json=${str}`);
+    player.setDynamicProperty(HG_SETTINGS_KEY, str);
+
+    // verify immediate read-back (super useful)
+    const back = player.getDynamicProperty(HG_SETTINGS_KEY);
+    sdbg(`saveSettings readBack type=${typeof back} value=${String(back).slice(0, 200)}`);
   } catch (e) {
-    // optional debug
-    if (DEBUG) console.warn(`[HG] saveSettings failed: ${e}`);
+    sdbg(`saveSettings FAILED err=${e}`);
   }
 }
+
 
 function restoreToDefault(player) {
   // simplest: overwrite with defaults
@@ -145,11 +167,11 @@ function restoreToDefault(player) {
   saveSettings(player, d);
   player.sendMessage("§a[Harvest Guard] Restored settings to defaults.");
 }
+//#endregion
 
 
-/* =========================
-   Guard Helpers
-========================= */
+//#region Guard Helpers
+
 
 function checkBlockBelowEqual(block) {
   const below = block.dimension.getBlock({
@@ -160,15 +182,19 @@ function checkBlockBelowEqual(block) {
   return !!below && below.typeId === block.typeId;
 }
 
-function msg(m, event = "") {
+function Message(m, event = "", warnning = false) {
   if (!DEBUG) return;
-  const prefix = event ? `[HG ${event}] ` : "[HG] ";
-  console.warn(prefix + m);
-}
+  const prefix = event ? `[HG][${event}] ` : "[HG] ";
+  if (!warnning) 
+  {console.info(prefix + m);}
+  else {console.warn(prefix + m);}
 
-/* =========================
-   UI: One Screen Settings
-========================= */
+}
+//#endregion
+
+
+//#region UI: One Screen Settings
+
 
 function buildMenu(settings) {
   return new ModalFormData()
@@ -200,39 +226,44 @@ function buildMenu(settings) {
 function applyFormValuesToSettings(values, currentSettings) {
   const s = mergeSettings(DEFAULT_SETTINGS, currentSettings);
 
-  // indices based on buildMenu order
+  // In your API build, ModalFormData.label() DOES consume a slot in formValues (undefined).
+  // Your formValues layout is:
   // 0 Enable
   // 1 Action
   // 2 Tool
-  // 3 Wheat
-  // 4 Carrots
-  // 5 Potatoes
-  // 6 Beetroot
-  // 7 Nether Wart
-  // 8 Cocoa
-  // 9 Sugar Cane
-  // 10 Bamboo
-  // 11 Cactus
-  // 12 Protect Farmland
-  // 13 Debug level
+  // 3 label "Protect Crops:"    -> undefined
+  // 4 Wheat
+  // 5 Carrots
+  // 6 Potatoes
+  // 7 Beetroot
+  // 8 Nether Wart
+  // 9 Cocoa
+  // 10 label "Protect Base:"   -> undefined
+  // 11 Sugar Cane
+  // 12 Bamboo
+  // 13 Cactus
+  // 14 Protect Farmland
+  // 15 Debug level
 
   s.enabled = !!values[0];
   s.actionModeIndex = Number(values[1] ?? 0);
   s.toolIndex = Number(values[2] ?? 0);
 
-  s.crops.wheat = !!values[3];
-  s.crops.carrots = !!values[4];
-  s.crops.potatoes = !!values[5];
-  s.crops.beetroot = !!values[6];
-  s.crops.netherWart = !!values[7];
-  s.crops.cocoa = !!values[8];
+  // crops (shifted by +1 because of label at idx 3)
+  s.crops.wheat = !!values[4];
+  s.crops.carrots = !!values[5];
+  s.crops.potatoes = !!values[6];
+  s.crops.beetroot = !!values[7];
+  s.crops.netherWart = !!values[8];
+  s.crops.cocoa = !!values[9];
 
-  s.bases.sugarCane = !!values[9];
-  s.bases.bamboo = !!values[10];
-  s.bases.cactus = !!values[11];
+  // bases (shifted by +1 because of label at idx 10)
+  s.bases.sugarCane = !!values[11];
+  s.bases.bamboo = !!values[12];
+  s.bases.cactus = !!values[13];
 
-  s.protectFarmland = !!values[12];
-  s.debugLevelIndex = Number(values[13] ?? 0);
+  s.protectFarmland = !!values[14];
+  s.debugLevelIndex = Number(values[15] ?? 0);
 
   return s;
 }
@@ -246,19 +277,28 @@ function showMenuWithRetry(player, triesLeft = 30, waitTime = 2) {
       system.runTimeout(() => showMenuWithRetry(player, triesLeft - 1, waitTime), waitTime);
       return;
     }
-    if (res.canceled) return;
+    if (res.canceled) {
+      sdbg(`UI canceled reason=${res.cancelationReason}`);
+      return;
+    }
+
+    const fv = res.formValues ?? [];
+    Message(`formValues len=${fv.length} values=${JSON.stringify(fv)}`,"showMenuWithRetry");
+
+    fv.forEach((v, i) => Message(`idx ${i} = ${JSON.stringify(v)}`,"showMenuWithRetry"));
 
     const next = applyFormValuesToSettings(res.formValues ?? [], current);
     saveSettings(player, next);
 
     player.sendMessage("§a[Harvest Guard] Settings saved.");
-    if (DEBUG) console.warn(`[HG] Saved settings for ${player.name}: ${JSON.stringify(next)}`);
+    Message(`Saved settings for ${player.name}: ${JSON.stringify(next)}`,"showMenuWithRetry");
   });
 }
+//#endregion
 
-/* =========================
-   Guard Logic (uses settings)
-========================= */
+
+//#region Guard Logic (uses settings)
+
 
 function shouldApplyRuleForBlock(blockTypeId, settings) {
   // Master enable
@@ -305,12 +345,8 @@ function applyGuard({ eventName, ev, block, itemStack, player }) {
 
   const states = block?.permutation?.getAllStates?.() ?? {};
 
-  // dev debug
-  if (DEBUG) {
-    console.warn(
-      `[HG ${eventName}] ${block.typeId} @ ${block.location.x},${block.location.y},${block.location.z} | ${JSON.stringify(states)}`
-    );
-  }
+  Message(`${block.typeId} @ ${block.location.x},${block.location.y},${block.location.z} | ${JSON.stringify(states)}`,eventName);
+  
 
   const cfg = GUARDED[eventName]?.[block.typeId];
   if (!cfg) return;
@@ -335,45 +371,33 @@ function applyGuard({ eventName, ev, block, itemStack, player }) {
       }
     } else {
       // fail-open
-      if (DEBUG) console.warn(`[HG ${eventName}] No numeric state '${cfg.state}' on ${block.typeId}`);
+      Message(`No numeric state '${cfg.state}' on ${block.typeId}`,eventName,true);
     }
   }
 
   if (cancel) {
     ev.cancel = true;
-    if (DEBUG && reason) console.warn(`[HG ${eventName}] CANCELLED ${block.typeId} reason=${reason}`);
+    if (reason) Message(`CANCELLED ${block.typeId} reason=${reason}`,eventName,true);
   }
 }
 
-/* =========================
-   Event Wiring
-========================= */
+
+
+function sdbg(message) {
+  Message( message,"SETTINGS",false);
+}
+
+//#endregion
+
+//#region Event Wiring
+
 
 // =========================
 // Safe event subscriptions (prevents "subscribe of undefined")
 // =========================
 
-// Dynamic Properties registration (only if supported by this API version)
-if (world.afterEvents?.worldInitialize?.subscribe) {
-  world.afterEvents.worldInitialize.subscribe((ev) => {
-    const DynDef = mc.DynamicPropertiesDefinition;
 
-    if (!DynDef) {
-      console.warn("[HG] DynamicPropertiesDefinition not available. Need fallback (scoreboard).");
-      return;
-    }
 
-    const def = new DynDef();
-    def.defineString(HG_SETTINGS_KEY, 4096);
-
-    // Most builds expose propertyRegistry here
-    ev.propertyRegistry.registerPlayerDynamicProperties(def);
-
-    console.warn("[HG] Registered player dynamic properties.");
-  });
-} else {
-  console.warn("[HG] afterEvents.worldInitialize not available. Need fallback (scoreboard).");
-}
 
 // LEFT CLICK (break) subscription
 if (world.beforeEvents?.playerBreakBlock?.subscribe) {
@@ -387,7 +411,8 @@ if (world.beforeEvents?.playerBreakBlock?.subscribe) {
     });
   });
 } else {
-  console.warn("[HG] beforeEvents.playerBreakBlock not available in this API version.");
+  Message("not available in this API version.", "beforeEvents.playerBreakBlock",true)
+
 }
 
 // Chat commands subscription
@@ -396,7 +421,7 @@ if (world.beforeEvents?.chatSend?.subscribe) {
     const message = data.message?.trim().toLowerCase();
 
     if (message === ".hg") {
-      msg(`message with .hg found from ${data.sender?.name ?? "null"}`);
+      Message(`message with .hg found, sender:${data.sender?.name ?? "null"} message: ${message}`);
       data.cancel = true;
       data.sender.sendMessage(USAGE_MESSAGE);
       return;
@@ -413,8 +438,15 @@ if (world.beforeEvents?.chatSend?.subscribe) {
       restoreToDefault(data.sender);
       return;
     }
+    if (message === ".hg show settings") {
+      data.cancel = true;
+      const s = getSettings(data.sender);
+      data.sender.sendMessage("§a[Harvest Guard] " + JSON.stringify(s));
+      return;
+    }
+
   });
 } else {
-  console.warn("[HG] beforeEvents.chatSend not available in this API version.");
+  Message("not available in this API version.","beforeEvents.chatSend",true);
 }
-
+//#endregion 
