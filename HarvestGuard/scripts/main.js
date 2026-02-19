@@ -6,11 +6,9 @@ import { ModalFormData } from "@minecraft/server-ui";
 /* =========================
    Constants / Static Rules
 ========================= */
-
+let GLOBAL_SETTINGS = "";
 const { world, system } = mc;
-const DynDef = mc.DynamicPropertiesDefinition;
 const TOOL = "minecraft:iron_hoe";
-const DEBUG = true; // dev-only console logs (independent of per-player Debug level)
 const USAGE_MESSAGE =
   '§a[Harvest Guard] Hi Please use:\n     ".hg settings" for setting dialog.\n     ".hg restore" to restore the values to default.\n     ".hg show settings" will show all settings as found in the settings dialog.';
 
@@ -83,20 +81,26 @@ const DEFAULT_SETTINGS = {
   debugLevelIndex: 0, // 0=None, 1=Basic (for future; DEBUG constant still prints)
 };
 
-function cloneDefaultSettings() {
-  return JSON.parse(JSON.stringify(DEFAULT_SETTINGS));
+function sdbg(message) {
+  logHG (message,"SETTINGS",false);
 }
+function cloneDefaultSettings() {
+  const out =JSON.parse(JSON.stringify(DEFAULT_SETTINGS));
+  GLOBAL_SETTINGS=out;
+  return out;
+}
+
+
 
 // Merge saved settings into defaults (safe migration)
 function mergeSettings(defaults, saved) {
+  const out = cloneDefaultSettings();
   if (!saved || typeof saved !== "object") {
     sdbg("mergeSettings: saved invalid -> returning defaults");
-    return defaults;
+    return out;
   }
 
   sdbg(`mergeSettings IN saved=${JSON.stringify(saved)}`);
-
-  const out = cloneDefaultSettings();
 
   // top-level primitives
   if (typeof saved.enabled === "boolean") out.enabled = saved.enabled;
@@ -120,28 +124,35 @@ function mergeSettings(defaults, saved) {
   }
 
   sdbg(`mergeSettings OUT out=${JSON.stringify(out)}`);
+
+  //update global value
+  GLOBAL_SETTINGS = out;
   return out;
 }
 
 function getSettings(player) {
   try {
+    if (GLOBAL_SETTINGS!="")
+    {
+      return GLOBAL_SETTINGS;
+    }
     const raw = player.getDynamicProperty(HG_SETTINGS_KEY);
-    sdbg(`getSettings player=${player?.name ?? "?"} rawType=${typeof raw} raw=${String(raw).slice(0, 200)}`);
 
     if (typeof raw !== "string" || raw.length === 0) {
-      sdbg("getSettings -> using defaults (no raw string)");
+
       return cloneDefaultSettings();
     }
 
     const parsed = JSON.parse(raw);
+
     sdbg(`getSettings parsed keys=${Object.keys(parsed ?? {}).join(",")}`);
 
     const merged = mergeSettings(DEFAULT_SETTINGS, parsed);
-    sdbg(`getSettings merged=${JSON.stringify(merged)}`);
+
 
     return merged;
   } catch (e) {
-    sdbg(`getSettings ERROR -> defaults. err=${e}`);
+      logHG(`getSettings ERROR -> defaults. err=${e}`,"getSettings",true );
     return cloneDefaultSettings();
   }
 }
@@ -149,7 +160,6 @@ function getSettings(player) {
 function saveSettings(player, settings) {
   try {
     const str = JSON.stringify(settings);
-    sdbg(`saveSettings player=${player?.name ?? "?"} jsonLen=${str.length} json=${str}`);
     player.setDynamicProperty(HG_SETTINGS_KEY, str);
 
     // verify immediate read-back (super useful)
@@ -182,10 +192,16 @@ function checkBlockBelowEqual(block) {
   return !!below && below.typeId === block.typeId;
 }
 
-function Message(m, event = "", warnning = false) {
-  if (!DEBUG) return;
+function logHG(m, event = "", warning = false) {
+  let logDebug =0;
+  if (GLOBAL_SETTINGS !="")
+  {
+    logDebug = GLOBAL_SETTINGS.debugLevelIndex
+  }
+
+  if (logDebug == 0) return;
   const prefix = event ? `[HG][${event}] ` : "[HG] ";
-  if (!warnning) 
+  if (!warning) 
   {console.info(prefix + m);}
   else {console.warn(prefix + m);}
 
@@ -278,20 +294,20 @@ function showMenuWithRetry(player, triesLeft = 30, waitTime = 2) {
       return;
     }
     if (res.canceled) {
-      sdbg(`UI canceled reason=${res.cancelationReason}`);
+      logHG(`UI canceled reason=${res.cancelationReason}`,"showMenuWithRetry",true);
       return;
     }
 
     const fv = res.formValues ?? [];
-    Message(`formValues len=${fv.length} values=${JSON.stringify(fv)}`,"showMenuWithRetry");
+    logHG(`formValues len=${fv.length} values=${JSON.stringify(fv)}`,"showMenuWithRetry");
 
-    fv.forEach((v, i) => Message(`idx ${i} = ${JSON.stringify(v)}`,"showMenuWithRetry"));
+    fv.forEach((v, i) => logHG(`idx ${i} = ${JSON.stringify(v)}`,"showMenuWithRetry"));
 
     const next = applyFormValuesToSettings(res.formValues ?? [], current);
     saveSettings(player, next);
 
     player.sendMessage("§a[Harvest Guard] Settings saved.");
-    Message(`Saved settings for ${player.name}: ${JSON.stringify(next)}`,"showMenuWithRetry");
+    logHG(`Saved settings for ${player.name}: ${JSON.stringify(next)}`,"showMenuWithRetry");
   });
 }
 //#endregion
@@ -345,7 +361,7 @@ function applyGuard({ eventName, ev, block, itemStack, player }) {
 
   const states = block?.permutation?.getAllStates?.() ?? {};
 
-  Message(`${block.typeId} @ ${block.location.x},${block.location.y},${block.location.z} | ${JSON.stringify(states)}`,eventName);
+  logHG(`${block.typeId} @ ${block.location.x},${block.location.y},${block.location.z} | ${JSON.stringify(states)}`,eventName);
   
 
   const cfg = GUARDED[eventName]?.[block.typeId];
@@ -371,21 +387,16 @@ function applyGuard({ eventName, ev, block, itemStack, player }) {
       }
     } else {
       // fail-open
-      Message(`No numeric state '${cfg.state}' on ${block.typeId}`,eventName,true);
+      logHG(`No numeric state '${cfg.state}' on ${block.typeId}`,eventName,true);
     }
   }
 
   if (cancel) {
     ev.cancel = true;
-    if (reason) Message(`CANCELLED ${block.typeId} reason=${reason}`,eventName,true);
+    if (reason) logHG(`CANCELLED ${block.typeId} reason=${reason}`,eventName,true);
   }
 }
 
-
-
-function sdbg(message) {
-  Message( message,"SETTINGS",false);
-}
 
 //#endregion
 
@@ -411,17 +422,17 @@ if (world.beforeEvents?.playerBreakBlock?.subscribe) {
     });
   });
 } else {
-  Message("not available in this API version.", "beforeEvents.playerBreakBlock",true)
+  logHG("not available in this API version.", "beforeEvents.playerBreakBlock",true)
 
 }
 
 // Chat commands subscription
 if (world.beforeEvents?.chatSend?.subscribe) {
   world.beforeEvents.chatSend.subscribe((data) => {
-    const message = data.message?.trim().toLowerCase();
+    const message = data.message?.trim().toLowerCase().replace(/\s+/g," ");
 
     if (message === ".hg") {
-      Message(`message with .hg found, sender:${data.sender?.name ?? "null"} message: ${message}`);
+      logHG(`message with .hg found, sender:${data.sender?.name ?? "null"} message: ${message}`);
       data.cancel = true;
       data.sender.sendMessage(USAGE_MESSAGE);
       return;
@@ -447,6 +458,6 @@ if (world.beforeEvents?.chatSend?.subscribe) {
 
   });
 } else {
-  Message("not available in this API version.","beforeEvents.chatSend",true);
+  logHG("not available in this API version.","beforeEvents.chatSend",true);
 }
 //#endregion 
