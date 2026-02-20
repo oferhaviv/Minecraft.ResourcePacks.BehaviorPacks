@@ -38,4 +38,6 @@ git commit -sa -m %msg%
 
 git push
 
+git status
+
 pause

@@ -6,7 +6,7 @@ import { ModalFormData } from "@minecraft/server-ui";
 /* =========================
    Constants / Static Rules
 ========================= */
-let GLOBAL_SETTINGS = "";
+let GLOBAL_SETTINGS = null;
 const { world, system } = mc;
 const TOOL = "minecraft:iron_hoe";
 const USAGE_MESSAGE =
@@ -132,7 +132,7 @@ function mergeSettings(defaults, saved) {
 
 function getSettings(player) {
   try {
-    if (GLOBAL_SETTINGS!="")
+    if (GLOBAL_SETTINGS)
     {
       return GLOBAL_SETTINGS;
     }
