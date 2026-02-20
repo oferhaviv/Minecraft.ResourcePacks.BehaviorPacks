@@ -1,58 +1,68 @@
 /**
  * Harvest Guard – menu UI (settings form and apply logic).
+ * Form is built from ui_schema.js.
  */
 
 import { ModalFormData } from "@minecraft/server-ui";
 import { system } from "@minecraft/server";
 import { DEFAULT_SETTINGS } from "../data/data.js";
+import UI_SCHEMA from "../data/ui_schema.js";
 import { getSettings, saveSettings, mergeSettings, logHG } from "../settingsManager.js";
 
+function getNested(obj, path) {
+  const parts = path.split(".");
+  let v = obj;
+  for (const p of parts) {
+    if (v == null) return undefined;
+    v = v[p];
+  }
+  return v;
+}
+
+function setNested(obj, path, value) {
+  const parts = path.split(".");
+  let o = obj;
+  for (let i = 0; i < parts.length - 1; i++) {
+    const p = parts[i];
+    if (o[p] == null || typeof o[p] !== "object") o[p] = {};
+    o = o[p];
+  }
+  o[parts[parts.length - 1]] = value;
+}
+
 export function buildMenu(settings) {
-  return new ModalFormData()
-    .title("Harvest Guard Settings")
-    .toggle("Enable", { defaultValue: settings.enabled })
-    .dropdown("Action", ["Always"], { defaultValueIndex: settings.actionModeIndex ?? 0 })
-    .dropdown("Tool", ["Iron Hoe"], { defaultValueIndex: settings.toolIndex ?? 0 })
-    .label("Protect Crops:")
-    .toggle("Wheat", { defaultValue: settings.crops.wheat })
-    .toggle("Carrots", { defaultValue: settings.crops.carrots })
-    .toggle("Potatoes", { defaultValue: settings.crops.potatoes })
-    .toggle("Beetroot", { defaultValue: settings.crops.beetroot })
-    .toggle("Nether Wart", { defaultValue: settings.crops.netherWart })
-    .toggle("Cocoa", { defaultValue: settings.crops.cocoa })
-    .label("Protect Base:")
-    .toggle("Sugar Cane", { defaultValue: settings.bases.sugarCane })
-    .toggle("Bamboo", { defaultValue: settings.bases.bamboo })
-    .toggle("Cactus", { defaultValue: settings.bases.cactus })
-    .toggle("Protect Breaking Farmland", { defaultValue: settings.protectFarmland })
-    .dropdown("Debug level", ["None", "Basic"], { defaultValueIndex: settings.debugLevelIndex ?? 0 });
+  const form = new ModalFormData().title(UI_SCHEMA.title);
+  for (const section of UI_SCHEMA.sections) {
+    if (section.type === "label") {
+      form.label(section.label);
+    } else if (section.type === "toggle") {
+      const def = getNested(settings, section.path);
+      form.toggle(section.label, { defaultValue: !!def });
+    } else if (section.type === "dropdown" && section.options) {
+      const def = getNested(settings, section.path);
+      const idx = typeof def === "number" ? def : 0;
+      form.dropdown(section.label, section.options, { defaultValueIndex: idx });
+    }
+  }
+  return form;
 }
 
 /**
- * Form values order MUST match buildMenu().
- * Labels consume a slot (undefined) in formValues.
+ * Form values order matches schema: formValues[i] is the value for the i-th section
+ * (labels have a slot too, typically undefined). So we use section index, not a separate counter.
  */
 export function applyFormValuesToSettings(values, currentSettings) {
   const s = mergeSettings(DEFAULT_SETTINGS, currentSettings);
-
-  s.enabled = !!values[0];
-  s.actionModeIndex = Number(values[1] ?? 0);
-  s.toolIndex = Number(values[2] ?? 0);
-
-  s.crops.wheat = !!values[4];
-  s.crops.carrots = !!values[5];
-  s.crops.potatoes = !!values[6];
-  s.crops.beetroot = !!values[7];
-  s.crops.netherWart = !!values[8];
-  s.crops.cocoa = !!values[9];
-
-  s.bases.sugarCane = !!values[11];
-  s.bases.bamboo = !!values[12];
-  s.bases.cactus = !!values[13];
-
-  s.protectFarmland = !!values[14];
-  s.debugLevelIndex = Number(values[15] ?? 0);
-
+  for (let i = 0; i < UI_SCHEMA.sections.length; i++) {
+    const section = UI_SCHEMA.sections[i];
+    if (section.type === "label") continue;
+    const raw = values[i];
+    if (section.type === "toggle") {
+      setNested(s, section.path, !!raw);
+    } else if (section.type === "dropdown") {
+      setNested(s, section.path, Number(raw ?? 0));
+    }
+  }
   return s;
 }
 

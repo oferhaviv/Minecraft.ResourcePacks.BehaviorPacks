@@ -41,6 +41,13 @@ function shouldApplyRuleForBlock(blockTypeId, settings) {
   if (blockTypeId === "minecraft:nether_wart") return !!settings.crops.netherWart;
   if (blockTypeId === "minecraft:cocoa") return !!settings.crops.cocoa;
 
+  if (blockTypeId === "minecraft:melon_stem") return !!settings.stems?.melonStem;
+  if (blockTypeId === "minecraft:pumpkin_stem") return !!settings.stems?.pumpkinStem;
+
+  if (blockTypeId === "minecraft:sweet_berry_bush") return !!settings.vines?.sweetBerryBush;
+  if (blockTypeId === "minecraft:cave_vines") return !!settings.vines?.caveVines;
+  if (blockTypeId === "minecraft:cave_vines_head_with_berries") return !!settings.vines?.caveVinesHead;
+
   return true;
 }
 
