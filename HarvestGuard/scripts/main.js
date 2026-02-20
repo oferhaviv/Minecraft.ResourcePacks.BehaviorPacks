@@ -3,9 +3,10 @@
  */
 
 import * as mc from "@minecraft/server";
-import { GUARDED, TOOL, USAGE_MESSAGE } from "./data/data.js";
+import { GUARDED, TOOLS, USAGE_MESSAGE } from "./data/data.js";
 import { getSettings, restoreToDefault, logHG, cloneDefaultSettings } from "./settingsManager.js";
 import { showMenuWithRetry } from "./ui/ui.js";
+
 
 const { world, system } = mc;
 
@@ -46,7 +47,8 @@ function shouldApplyRuleForBlock(blockTypeId, settings) {
 function applyGuard({ eventName, ev, block, itemStack, player }) {
   if (!block) return;
 
-  if (!itemStack || itemStack.typeId !== TOOL) return;
+  // Check if the item is one of the allowed tools
+  if (!itemStack || !TOOLS.includes(itemStack.typeId)) return;
 
   const settings = player ? getSettings(player) : cloneDefaultSettings();
   if (!shouldApplyRuleForBlock(block.typeId, settings)) return;

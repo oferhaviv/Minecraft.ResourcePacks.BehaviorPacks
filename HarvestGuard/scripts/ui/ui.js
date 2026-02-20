@@ -4,7 +4,7 @@
 
 import { ModalFormData } from "@minecraft/server-ui";
 import { system } from "@minecraft/server";
-import { DEFAULT_SETTINGS } from "../data.js";
+import { DEFAULT_SETTINGS } from "../data/data.js";
 import { getSettings, saveSettings, mergeSettings, logHG } from "../settingsManager.js";
 
 export function buildMenu(settings) {
