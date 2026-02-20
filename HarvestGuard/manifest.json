@@ -5,7 +5,7 @@
     "name": "Harvest Guard",
     "description": "prevents breaking unripe crops and protects the base of vertical plants when using an Iron Hoe. A vanilla-friendly farming safety add-on.",
     "uuid": "9b1e6a7d-2a4f-4d91-8c9e-3f6b1a2c7d11",
-    "version": [1, 0, 1],
+    "version": [1, 0, 3],
     "min_engine_version": [1, 19, 0]
   },
   "modules": [

@@ -142,6 +142,7 @@ if (world.beforeEvents?.chatSend?.subscribe) {
     if (message === ".hg show settings") {
       data.cancel = true;
       const s = getSettings(data.sender);
+      data.sender.sendMessage("§a[Harvest Guard] Version: " + manifest.header.version);
       data.sender.sendMessage("§a[Harvest Guard] " + JSON.stringify(s));
       return;
     }

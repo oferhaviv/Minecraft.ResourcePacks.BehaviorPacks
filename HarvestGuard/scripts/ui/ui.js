@@ -5,8 +5,7 @@
 
 import { ModalFormData } from "@minecraft/server-ui";
 import { system } from "@minecraft/server";
-import { DEFAULT_SETTINGS } from "../data/data.js";
-import UI_SCHEMA from "../data/ui_schema.js";
+import { DEFAULT_SETTINGS,UI_SCHEMA } from "../data/data.js";
 import { getSettings, saveSettings, mergeSettings, logHG } from "../settingsManager.js";
 
 function getNested(obj, path) {

@@ -44,6 +44,18 @@ export function mergeSettings(defaults, saved) {
     }
   }
 
+  if (saved.stems && typeof saved.stems === "object") {
+    for (const k of Object.keys(out.stems)) {
+      if (typeof saved.stems[k] === "boolean") out.stems[k] = saved.stems[k];
+    }
+  }
+
+  if (saved.vines && typeof saved.vines === "object") {
+    for (const k of Object.keys(out.vines)) {
+      if (typeof saved.vines[k] === "boolean") out.vines[k] = saved.vines[k];
+    }
+  }
+
   sdbg(`mergeSettings OUT out=${JSON.stringify(out)}`);
   GLOBAL_SETTINGS = out;
   return out;
