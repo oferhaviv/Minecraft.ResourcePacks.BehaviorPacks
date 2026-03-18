@@ -2,10 +2,9 @@
  * Harvest Guard – get/set and merge of per-player settings.
  */
 
-import { DEFAULT_SETTINGS, HG_SETTINGS_KEY } from "./data/data.js";
+import { DEFAULT_SETTINGS, HG_SETTINGS_KEY_ROOT } from "./data/data.js";
 
 let GLOBAL_SETTINGS = null;
-
 function sdbg(message) {
   logHG(message, "SETTINGS", false);
 }
@@ -66,6 +65,8 @@ export function getSettings(player) {
     if (GLOBAL_SETTINGS) {
       return GLOBAL_SETTINGS;
     }
+    let HG_SETTINGS_KEY = `${HG_SETTINGS_KEY_ROOT}_${player.id}`;
+
     const raw = player.getDynamicProperty(HG_SETTINGS_KEY);
 
     if (typeof raw !== "string" || raw.length === 0) {
@@ -85,6 +86,7 @@ export function getSettings(player) {
 export function saveSettings(player, settings) {
   try {
     const str = JSON.stringify(settings);
+    let HG_SETTINGS_KEY = `${HG_SETTINGS_KEY_ROOT}_${player.id}`;
     player.setDynamicProperty(HG_SETTINGS_KEY, str);
     const back = player.getDynamicProperty(HG_SETTINGS_KEY);
     sdbg(`saveSettings readBack type=${typeof back} value=${String(back).slice(0, 200)}`);

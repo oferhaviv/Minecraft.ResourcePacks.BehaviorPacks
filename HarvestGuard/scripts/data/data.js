@@ -11,7 +11,7 @@ import UI_SCHEMA_DATA from "./ui_schema.js";
 // Config exports
 export const TOOLS = Array.isArray(CONFIG_DATA.tools) ? CONFIG_DATA.tools : (CONFIG_DATA.tool ? [CONFIG_DATA.tool] : ["minecraft:iron_hoe"]);
 export const TOOL = TOOLS[0];
-export const HG_SETTINGS_KEY = CONFIG_DATA.hgSettingsKey;
+export const HG_SETTINGS_KEY_ROOT = CONFIG_DATA.hgSettingsKey;
 export const USAGE_MESSAGE = CONFIG_DATA.usageMessage;
 
 // Guarded + settings exports

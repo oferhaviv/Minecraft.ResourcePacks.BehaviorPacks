@@ -4,7 +4,7 @@
 
 import * as mc from "@minecraft/server";
 import { GUARDED, TOOLS, USAGE_MESSAGE } from "./data/data.js";
-import { getSettings, restoreToDefault, logHG, cloneDefaultSettings } from "./settingsManager.js";
+import { getSettings, saveSettings,restoreToDefault, logHG, cloneDefaultSettings } from "./settingsManager.js";
 import { showMenuWithRetry } from "./ui/ui.js";
 
 
@@ -114,6 +114,49 @@ if (world.beforeEvents?.playerBreakBlock?.subscribe) {
   });
 } else {
   logHG("not available in this API version.", "beforeEvents.playerBreakBlock", true);
+}
+
+if (system.afterEvents?.scriptEventReceive?.subscribe) {
+  system.afterEvents.scriptEventReceive.subscribe((ev) => {
+    logHG(`scriptEventRecieved: id: ${ev.id} ${ev.message}`);
+
+    if (ev.id === "hg:settings") {
+      system.runTimeout(() => showMenuWithRetry(ev.sourceEntity), 2);
+      return;
+    }
+    if (ev.id === "hg:restore") {
+      system.runTimeout(() => restoreToDefault(ev.sourceEntity), 2);
+      return;
+    }
+    if (ev.id === "hg:show settings") {
+      system.runTimeout(() => showSettings(ev.sourceEntity), 2);
+      return;
+    }
+    if (ev.id === "hg:usage") {
+      system.runTimeout(() => ev.sourceEntity.sendMessage(USAGE_MESSAGE), 2);
+      return;
+    }
+    if (ev.id === "hg:active") {
+      const player = ev.sourceEntity;
+      if (!player) {
+        logHG("player is null", "hg:active", true);
+        return;
+      }
+      const msg = String(ev.message).toLowerCase();
+      if (msg === "true" || msg === "false") {
+        const s = getSettings(player);
+        s.enabled = (msg === "true");   // המרה ל-boolean
+        saveSettings(player, s);
+    
+        player.sendMessage(`§a[Harvest Guard] Harvest Guard enabled: ${s.enabled}`);
+      } else {
+        player.sendMessage("Usage: /scriptevent hg:active true|false");
+      }
+      return;
+    }
+  });
+} else {
+  console.warn("world.afterEvents.scriptEventReceive.subscribe not available in this API version.");
 }
 
 if (world.beforeEvents?.chatSend?.subscribe) {
