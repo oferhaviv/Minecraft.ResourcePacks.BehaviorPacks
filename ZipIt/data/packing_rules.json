@@ -5,21 +5,8 @@
       "sourceItem": "minecraft:redstone",
       "targetItem": "minecraft:redstone_block",
       "ratio": 9,
-      "enabledByDefault": true
-    },
-    {
-      "id": "lapis",
-      "sourceItem": "minecraft:lapis_lazuli",
-      "targetItem": "minecraft:lapis_block",
-      "ratio": 9,
-      "enabledByDefault": true
-    },
-    {
-      "id": "iron",
-      "sourceItem": "minecraft:iron_ingot",
-      "targetItem": "minecraft:iron_block",
-      "ratio": 9,
-      "enabledByDefault": true
+      "enabledByDefault": true,
+      "defaultMinSourceCount": 9
     }
   ]
 }

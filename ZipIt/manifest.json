@@ -2,7 +2,7 @@
   "format_version": 2,
   "header": {
     "name": "Redstone Packer MVP",
-    "description": "Use a blaze rod to compact redstone dust into redstone blocks.",
+    "description": "Automatically compresses eligible inventory items into storage blocks to save space. Vanilla-friendly, configurable per player, and designed for survival play.",
     "uuid": "8f2b6d2c-3e6a-4c7b-9c3a-1f5d8e2a7b11",
     "version": [
       1,
