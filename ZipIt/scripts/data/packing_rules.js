@@ -128,7 +128,7 @@ export const PACKING_RULES = [
   {
     "id": "slime_ball",
     "sourceItem": "minecraft:slime_ball",
-    "targetItem": "minecraft:slime_block",
+    "targetItem": "minecraft:slime",
     "ratio": 9,
     "enabledByDefault": true,
     "defaultMinSourceCount": 9,
@@ -140,7 +140,7 @@ export const PACKING_RULES = [
     "sourceItem": "minecraft:iron_nugget",
     "targetItem": "minecraft:iron_ingot",
     "ratio": 9,
-    "enabledByDefault": false,
+    "enabledByDefault": true,
     "defaultMinSourceCount": 9,
     "profile": ["builder"]
   },
@@ -149,7 +149,7 @@ export const PACKING_RULES = [
     "sourceItem": "minecraft:gold_nugget",
     "targetItem": "minecraft:gold_ingot",
     "ratio": 9,
-    "enabledByDefault": false,
+    "enabledByDefault": true,
     "defaultMinSourceCount": 9,
     "profile": ["builder"]
   },
@@ -158,9 +158,19 @@ export const PACKING_RULES = [
     "sourceItem": "minecraft:copper_nugget",
     "targetItem": "minecraft:copper_ingot",
     "ratio": 9,
-    "enabledByDefault": false,
+    "enabledByDefault": true,
+    "defaultMinSourceCount": 9,
+    "profile": ["builder"]
+  },
+  {
+    "id": "dried_kelp",
+    "sourceItem": "minecraft:dried_kelp",
+    "targetItem": "minecraft:dried_kelp_block",
+    "ratio": 9,
+    "enabledByDefault": true,
     "defaultMinSourceCount": 9,
     "profile": ["builder"]
   }
+
 ];
 

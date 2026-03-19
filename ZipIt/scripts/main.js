@@ -1,14 +1,49 @@
 import { world, system, ItemStack } from "@minecraft/server";
 import { PACKING_RULES } from "./data/packing_rules";
 import { DEFAULT_PLAYER_SETTINGS } from "./data/default_player_settings";
+import { CONFIG } from "./data/config";
 import { myLog } from "./myLog.js";
+import { createZpSettingsDialogHandlers } from "./ui/SettingsDialog.js";
 
 const SCAN_INTERVAL_TICKS = 20;
 const PLAYER_SETTINGS_PROPERTY_KEY = "zipit:settings";
 const USE_DYNAMIC_PLAYER_SETTINGS = true;
 const DYNAMIC_SETTINGS_MAX_BYTES = 8192;
 
+const USAGE_MESSAGE = CONFIG.usageMessage;
 const RULES = Array.isArray(PACKING_RULES) ? PACKING_RULES : [];
+// Make debug settings visible to `scripts/myLog.js` via `globalThis`.
+globalThis.GLOBAL_SETTINGS = globalThis.GLOBAL_SETTINGS ?? { debugLevelIndex: 1 };
+
+const { handleZpShowSettings } = createZpSettingsDialogHandlers({
+  RULES,
+  getPlayerSettings,
+  savePlayerSettings,
+  myLog,
+});
+
+// Cache item-id validation because creating ItemStacks can be expensive (and may throw).
+// itemId -> { ok: boolean, error?: string }
+const itemIdValidationCache = new Map();
+function validateItemId(itemId) {
+  if (!itemId) return { ok: false, error: "Missing itemId" };
+  if (itemIdValidationCache.has(itemId)) return itemIdValidationCache.get(itemId);
+
+  try {
+    // Only validate; do not keep the instance.
+    // eslint-disable-next-line no-new
+    new ItemStack(itemId, 1);
+    const result = { ok: true };
+    itemIdValidationCache.set(itemId, result);
+    return result;
+  } catch (error) {
+    const result = { ok: false, error: stringifyError(error) };
+    itemIdValidationCache.set(itemId, result);
+    return result;
+  }
+}
+
+const disabledRuleIds = new Set();
 
 // Debounce per-player to avoid multiple pack runs per tick burst.
 const pendingPlayers = new Set();
@@ -35,56 +70,57 @@ world.afterEvents.worldInitialize?.subscribe((ev) => {
   }
 });
 
-// Simple chat-based command handler for ZipIt:
-// /zp get
-// /zp set <ruleIdOrItemId> <true|false>
-function registerChatCommands() {
-  const handler = (ev) => {
+// Script event–based command handler for ZipIt:
+// /scriptevent zp:get
+// /scriptevent zp:set <ruleIdOrItemId> <true|false>
+// /scriptevent zp:usage
+// /scriptevent zp:debugLevel <0-1>
+// /scriptevent zp:active <true|false>
+// /scriptevent zp:restore
+// /scriptevent zp:showSettings
+if (system.afterEvents?.scriptEventReceive?.subscribe) {
+  system.afterEvents.scriptEventReceive.subscribe((ev) => {
     try {
-      const message = ev?.message?.trim();
-      const sender = ev?.sender;
-      if (!message || !sender) return;
+      const source = ev.sourceEntity;
+      if (!source || source.typeId !== "minecraft:player") return;
 
-      if (!(message.startsWith("/zp") || message.startsWith("zp "))) return;
-
-      // Prevent the message from showing as normal chat.
-      if ("cancel" in ev) {
-        ev.cancel = true;
-      }
-
-      const withoutPrefix = message.startsWith("/zp")
-        ? message.slice(3).trim()
-        : message.slice(2).trim();
-
-      if (!withoutPrefix) {
-        sender.sendMessage("ZipIt: usage: /zp get | /zp set <item> <true|false>");
+      const args = (ev.message ?? "").trim().split(/\s+/).filter((x) => x.length > 0);
+      
+      if (ev.id === "zp:get") {
+        handleZpGet(source);
         return;
       }
 
-      const parts = withoutPrefix.split(/\s+/);
-      const sub = parts[0]?.toLowerCase();
+      if (ev.id === "zp:usage") {
+        system.runTimeout(() => ev.sourceEntity.sendMessage(USAGE_MESSAGE), 2);
+        return;
+      }
 
-      if (sub === "get") {
-        handleZpGet(sender);
-      } else if (sub === "set") {
-        handleZpSet(sender, parts.slice(1));
-      } else {
-        sender.sendMessage("ZipIt: unknown subcommand. Use /zp get or /zp set.");
+      if (ev.id === "zp:set") {
+        handleZpSet(source, args);
+        return;
+      }
+      if (ev.id === "zp:active") {
+        handleZpActive(source, args);
+        return;
+      }
+      if (ev.id === "zp:debugLevel") {
+        handleZpDebugLevel(source, args);
+        return;
+      }
+      if (ev.id === "zp:restore") {
+        handleZpRestore(source);
+        return;
+      }
+      if (ev.id === "zp:showSettings" || ev.id === "zp:settings") {
+        handleZpShowSettings(source);
+        return;
       }
     } catch (error) {
-      myLog(`Command handler error: ${stringifyError(error)}`, "ZipIt", true);
+      myLog(`scriptEvent handler error: ${stringifyError(error)}`, "ZipIt", true);
     }
-  };
-
-  // Prefer beforeEvents so we can cancel the message.
-  if (world.beforeEvents?.chatSend?.subscribe) {
-    world.beforeEvents.chatSend.subscribe(handler);
-  } else if (world.afterEvents?.chatSend?.subscribe) {
-    world.afterEvents.chatSend.subscribe(handler);
-  }
+  });
 }
-
-registerChatCommands();
 
 function handleZpGet(player) {
   try {
@@ -116,7 +152,7 @@ function findRuleByKey(key) {
 
 function handleZpSet(player, args) {
   if (!args || args.length < 2) {
-    player.sendMessage("ZipIt: usage: /zp set <itemOrRuleId> <true|false>");
+    player.sendMessage(USAGE_MESSAGE);
     return;
   }
 
@@ -142,14 +178,111 @@ function handleZpSet(player, args) {
       player.sendMessage("ZipIt: failed to save settings (too large or error).");
       return;
     }
-
-    player.sendMessage(
-      `ZipIt: rule '${rule.id}' (${rule.sourceItem}) set to enabled=${value}.`
-    );
+    const message = `rule '${rule.id}' (${rule.sourceItem}) set to enabled=${value}.`;
+    myLog(message, "handleZpSet");
+    player.sendMessage(`ZipIt: ${message}`);
   } catch (error) {
-    myLog(`Failed /zp set: ${stringifyError(error)}`, "ZipIt", true);
+    myLog(`Failed zipit:set: ${stringifyError(error)}`, "ZipIt", true);
     player.sendMessage("ZipIt: failed to update settings. See log.");
   }
+}
+
+function parseBool(value) {
+  if (value == null) return undefined;
+  const v = String(value).trim().toLowerCase();
+  if (v === "true" || v === "1" || v === "on" || v === "yes") return true;
+  if (v === "false" || v === "0" || v === "off" || v === "no") return false;
+  return undefined;
+}
+
+function handleZpActive(player, args) {
+  try {
+    if (!args || args.length < 1) {
+      player.sendMessage(USAGE_MESSAGE);
+      return;
+    }
+
+    const active = parseBool(args[0]);
+    if (typeof active !== "boolean") {
+      player.sendMessage(USAGE_MESSAGE);
+      return;
+    }
+
+    const settings = getPlayerSettings(player);
+    settings.enabled = active;
+    const saved = savePlayerSettings(player, settings);
+
+    if (!saved) {
+      player.sendMessage("ZipIt: failed to save settings.");
+      return;
+    }
+
+    player.sendMessage(`ZipIt: active=${active}`);
+  } catch (error) {
+    myLog(`Failed zipit:active: ${stringifyError(error)}`, "ZipIt", true);
+    player.sendMessage("ZipIt: failed to update active flag. See log.");
+  }
+}
+
+function handleZpDebugLevel(player, args) {
+  try {
+    if (!args || args.length < 1) {
+      player.sendMessage(USAGE_MESSAGE);
+      return;
+    }
+
+    const raw = String(args[0]).trim();
+    const n = Number(raw);
+    if (!Number.isFinite(n)) {
+      player.sendMessage(USAGE_MESSAGE);
+      return;
+    }
+
+    const level = n <= 0 ? 0 : 1;
+    globalThis.GLOBAL_SETTINGS = globalThis.GLOBAL_SETTINGS ?? { debugLevelIndex: 0 };
+    globalThis.GLOBAL_SETTINGS.debugLevelIndex = level;
+
+    // Persist into player settings so the dialog stays consistent.
+    const settings = getPlayerSettings(player);
+    settings.debug = settings.debug ?? {};
+    settings.debug.level = level === 1 ? "basic" : "none";
+    savePlayerSettings(player, settings);
+
+    player.sendMessage(`ZipIt: debugLevelIndex=${level}`);
+    myLog(`debugLevelIndex set to ${level}`, "ZipIt");
+  } catch (error) {
+    myLog(`Failed zipit:debugLevel: ${stringifyError(error)}`, "ZipIt", true);
+    player.sendMessage("ZipIt: failed to update debug level. See log.");
+  }
+}
+
+function handleZpRestore(player) {
+  try {
+    const settings = deepClone(DEFAULT_PLAYER_SETTINGS);
+    const saved = savePlayerSettings(player, settings);
+
+    if (!saved) {
+      player.sendMessage("ZipIt: restore failed (could not save settings).");
+      return;
+    }
+
+    player.sendMessage("ZipIt: restored default settings.");
+    syncGlobalDebugFromSettings(settings);
+    myLog("restore -> defaults applied", "ZipIt");
+  } catch (error) {
+    myLog(`Failed zipit:restore: ${stringifyError(error)}`, "ZipIt", true);
+    player.sendMessage("ZipIt: failed to restore settings. See log.");
+  }
+}
+
+function getDebugLevelIndexFromLevel(level) {
+  return level === "basic" ? 1 : 0;
+}
+
+function syncGlobalDebugFromSettings(settings) {
+  const level = settings?.debug?.level ?? "none";
+  globalThis.GLOBAL_SETTINGS = globalThis.GLOBAL_SETTINGS ?? { debugLevelIndex: 0 };
+  globalThis.GLOBAL_SETTINGS.debugLevelIndex = getDebugLevelIndexFromLevel(level);
 }
 
 // Prefer event-driven inventory detection when available; keep interval as fallback.
@@ -211,38 +344,91 @@ function processPlayer(player) {
 }
 
 function tryExecutePackingRule(container, rule, ruleSettings) {
-  const sourceCount = countItemInContainer(container, rule.sourceItem);
-  const minSourceCount = ruleSettings.minSourceCount ?? rule.defaultMinSourceCount;
+  const ruleKey = rule?.id ?? rule?.sourceItem ?? rule?.targetItem;
+  if (ruleKey && disabledRuleIds.has(ruleKey)) return;
 
-  if (sourceCount < minSourceCount) return;
-  if (sourceCount < rule.ratio) return;
-
-  const packedCount = Math.floor(sourceCount / rule.ratio);
-  if (packedCount <= 0) return;
-
-  const targetCapacity = calculateTargetCapacity(container, rule.targetItem);
-
-  // Must be able to place all produced target items.
-  if (targetCapacity < packedCount) {
+  // Validate item ids up-front; if invalid, skip without modifying inventory.
+  const sourceValidation = validateItemId(rule?.sourceItem);
+  const targetValidation = validateItemId(rule?.targetItem);
+  if (!sourceValidation?.ok || !targetValidation?.ok) {
+    if (ruleKey) disabledRuleIds.add(ruleKey);
+    myLog(
+      `Skipping rule '${ruleKey}': invalid ItemStack typeId` +
+        ` (sourceOk=${sourceValidation.ok} targetOk=${targetValidation.ok}` +
+        ` source='${rule?.sourceItem}' target='${rule?.targetItem}'` +
+        ` sourceError='${sourceValidation.error ?? ""}' targetError='${targetValidation.error ?? ""}')`,
+      "ZipIt",
+      true
+    );
     return;
   }
 
-  const sourceToRemove = packedCount * rule.ratio;
+  try {
+    const sourceCount = countItemInContainer(container, rule.sourceItem);
+    const minSourceCount = ruleSettings.minSourceCount ?? rule.defaultMinSourceCount;
 
-  const removedAmount = removeItemsFromContainer(container, rule.sourceItem, sourceToRemove);
+    if (sourceCount < minSourceCount) return;
+    if (sourceCount < rule.ratio) return;
 
-  if (removedAmount !== sourceToRemove) {
-    if (removedAmount > 0) {
-      placeItemsDeterministically(container, rule.sourceItem, removedAmount);
+    const packedCount = Math.floor(sourceCount / rule.ratio);
+    if (packedCount <= 0) return;
+
+    const targetCapacity = calculateTargetCapacity(container, rule.targetItem);
+
+    // Must be able to place all produced target items.
+    if (targetCapacity < packedCount) {
+      myLog(
+        `Rule '${ruleKey}': insufficient target capacity (targetCapacity=${targetCapacity} packedCount=${packedCount} targetItem='${rule.targetItem}')`,
+        "ZipIt",
+        true
+      );
+      return;
     }
-    return;
-  }
 
-  const addSucceeded = placeItemsDeterministically(container, rule.targetItem, packedCount);
+    const sourceToRemove = packedCount * rule.ratio;
 
-  if (!addSucceeded) {
-    // Roll back on unexpected failure
-    placeItemsDeterministically(container, rule.sourceItem, sourceToRemove);
+    const removedAmount = removeItemsFromContainer(container, rule.sourceItem, sourceToRemove);
+
+    if (removedAmount !== sourceToRemove) {
+      myLog(
+        `Rule '${ruleKey}': failed removing source items (expected=${sourceToRemove} removed=${removedAmount} sourceItem='${rule.sourceItem}')`,
+        "ZipIt",
+        true
+      );
+      // Attempt best-effort rollback of whatever we removed.
+      if (removedAmount > 0) {
+        const rollbackAddOk = placeItemsDeterministically(container, rule.sourceItem, removedAmount);
+        if (!rollbackAddOk) {
+          myLog(
+            `Rule '${ruleKey}': rollback failed after remove mismatch (rollbackAmount=${removedAmount} sourceItem='${rule.sourceItem}')`,
+            "ZipIt",
+            true
+          );
+        }
+      }
+      return;
+    }
+
+    const addSucceeded = placeItemsDeterministically(container, rule.targetItem, packedCount);
+
+    if (!addSucceeded) {
+      myLog(
+        `Rule '${ruleKey}': failed placing target items (targetItem='${rule.targetItem}' addAmount=${packedCount})`,
+        "ZipIt",
+        true
+      );
+      // Roll back on unexpected failure
+      const rollbackOk = placeItemsDeterministically(container, rule.sourceItem, sourceToRemove);
+      if (!rollbackOk) {
+        myLog(
+          `Rule '${ruleKey}': rollback failed after target place failure (rollbackAmount=${sourceToRemove} sourceItem='${rule.sourceItem}')`,
+          "ZipIt",
+          true
+        );
+      }
+    }
+  } catch (error) {
+    myLog(`Rule '${ruleKey}': unexpected error: ${stringifyError(error)}`, "ZipIt", true);
   }
 }
 
@@ -404,10 +590,25 @@ function savePlayerSettings(player, settings) {
 function resolveRuleSettings(playerSettings, rule) {
   const playerRuleSettings = playerSettings?.rules?.[rule.id];
 
+  // Profile-based default:
+  // - If the rule has profiles (rule.profile), enable if ANY profile is enabled in player settings.
+  // - Otherwise, fallback to rule.enabledByDefault.
+  const ruleProfiles = Array.isArray(rule?.profile) ? rule.profile : [];
+  const profileEnabled =
+    ruleProfiles.length > 0
+      ? ruleProfiles.some((p) => playerSettings?.profiles?.[p] === true)
+      : rule.enabledByDefault ?? true;
+
   return {
-    enabled: playerRuleSettings?.enabled ?? rule.enabledByDefault ?? true,
+    // Rule-level setting overrides profile defaults.
+    enabled:
+      typeof playerRuleSettings?.enabled === "boolean"
+        ? playerRuleSettings.enabled
+        : profileEnabled,
     minSourceCount:
-      playerRuleSettings?.minSourceCount ?? rule.defaultMinSourceCount ?? rule.ratio,
+      playerRuleSettings?.minSourceCount ??
+      rule.defaultMinSourceCount ??
+      rule.ratio,
   };
 }
 
@@ -418,14 +619,29 @@ function mergePlayerSettings(defaults, saved) {
     result.enabled = saved.enabled;
   }
 
+  if (saved?.profiles && typeof saved.profiles === "object") {
+    if (typeof saved.profiles.miner === "boolean") result.profiles.miner = saved.profiles.miner;
+    if (typeof saved.profiles.builder === "boolean") result.profiles.builder = saved.profiles.builder;
+  }
+
+  if (saved?.features && typeof saved.features === "object") {
+    if (typeof saved.features.inventorySort === "boolean") {
+      result.features.inventorySort = saved.features.inventorySort;
+    }
+  }
+
+  if (saved?.debug && typeof saved.debug === "object") {
+    if (saved.debug.level === "none" || saved.debug.level === "basic") {
+      result.debug.level = saved.debug.level;
+    }
+  }
+
   if (saved?.rules && typeof saved.rules === "object") {
     for (const ruleId of Object.keys(saved.rules)) {
       const savedRule = saved.rules[ruleId];
       if (!savedRule || typeof savedRule !== "object") continue;
 
-      if (!result.rules[ruleId]) {
-        result.rules[ruleId] = {};
-      }
+      if (!result.rules[ruleId]) result.rules[ruleId] = {};
 
       if (typeof savedRule.enabled === "boolean") {
         result.rules[ruleId].enabled = savedRule.enabled;
