@@ -32,6 +32,13 @@ git pull -all
 rem copy source from minecraft folder to GH folder 
 xcopy %minecraft_BP_folder% %GH_folder% /e /y
 
+set minecraft_BP_folder="C:\Users\oferh\AppData\Roaming\Minecraft Bedrock\Users\Shared\games\com.mojang\development_behavior_packs\ZipIt"
+set GH_folder="d:\github\Minecraft.ResourcePacks.BehaviorPacks\ZipIt"
+cd /d %GH_folder%
+
+rem copy source from minecraft folder to GH folder 
+xcopy %minecraft_BP_folder% %GH_folder% /e /y
+
 git add .
 
 git commit -sa -m %msg%
