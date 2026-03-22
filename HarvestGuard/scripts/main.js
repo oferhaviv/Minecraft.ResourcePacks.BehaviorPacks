@@ -131,7 +131,7 @@ if (system.afterEvents?.scriptEventReceive?.subscribe) {
     }
     if (ev.id === "hg:show") {
       const s = getSettings(ev.sourceEntity);
-      ev.sourceEntity.sendMessage("§a[Harvest Guard] " + JSON.stringify(s));
+      ev.sourceEntity.sendMessage("[Harvest Guard] " + JSON.stringify(s));
       return;
     }
     if (ev.id === "hg:active") {

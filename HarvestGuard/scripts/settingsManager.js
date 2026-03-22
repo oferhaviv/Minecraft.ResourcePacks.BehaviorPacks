@@ -4,15 +4,15 @@
 
 import { DEFAULT_SETTINGS, HG_SETTINGS_KEY_ROOT } from "./data/data.js";
 
-let GLOBAL_SETTINGS = null;
+const settingsCache = new Map(); // player.id -> settings object
+let debugLevelIndex = 0;
+
 function sdbg(message) {
   logHG(message, "SETTINGS", false);
 }
 
 export function cloneDefaultSettings() {
-  const out = JSON.parse(JSON.stringify(DEFAULT_SETTINGS));
-  GLOBAL_SETTINGS = out;
-  return out;
+  return JSON.parse(JSON.stringify(DEFAULT_SETTINGS));
 }
 
 /** Merge saved settings into defaults (safe migration). */
@@ -56,26 +56,29 @@ export function mergeSettings(defaults, saved) {
   }
 
   sdbg(`mergeSettings OUT out=${JSON.stringify(out)}`);
-  GLOBAL_SETTINGS = out;
   return out;
 }
 
 export function getSettings(player) {
   try {
-    if (GLOBAL_SETTINGS) {
-      return GLOBAL_SETTINGS;
+    if (settingsCache.has(player.id)) {
+      return settingsCache.get(player.id);
     }
-    let HG_SETTINGS_KEY = `${HG_SETTINGS_KEY_ROOT}_${player.id}`;
 
+    const HG_SETTINGS_KEY = `${HG_SETTINGS_KEY_ROOT}_${player.id}`;
     const raw = player.getDynamicProperty(HG_SETTINGS_KEY);
 
     if (typeof raw !== "string" || raw.length === 0) {
-      return cloneDefaultSettings();
+      const defaults = cloneDefaultSettings();
+      settingsCache.set(player.id, defaults);
+      return defaults;
     }
 
     const parsed = JSON.parse(raw);
     sdbg(`getSettings parsed keys=${Object.keys(parsed ?? {}).join(",")}`);
     const merged = mergeSettings(DEFAULT_SETTINGS, parsed);
+    settingsCache.set(player.id, merged);
+    debugLevelIndex = merged.debugLevelIndex ?? 0;
     return merged;
   } catch (e) {
     logHG(`getSettings ERROR -> defaults. err=${e}`, "getSettings", true);
@@ -86,8 +89,10 @@ export function getSettings(player) {
 export function saveSettings(player, settings) {
   try {
     const str = JSON.stringify(settings);
-    let HG_SETTINGS_KEY = `${HG_SETTINGS_KEY_ROOT}_${player.id}`;
+    const HG_SETTINGS_KEY = `${HG_SETTINGS_KEY_ROOT}_${player.id}`;
     player.setDynamicProperty(HG_SETTINGS_KEY, str);
+    settingsCache.set(player.id, settings);
+    debugLevelIndex = settings.debugLevelIndex ?? 0;
     const back = player.getDynamicProperty(HG_SETTINGS_KEY);
     sdbg(`saveSettings readBack type=${typeof back} value=${String(back).slice(0, 200)}`);
   } catch (e) {
@@ -101,13 +106,9 @@ export function restoreToDefault(player) {
   player.sendMessage("§a[Harvest Guard] Restored settings to defaults.");
 }
 
-/** Log helper; respects debugLevelIndex from current GLOBAL_SETTINGS. */
+/** Log helper; respects debugLevelIndex updated on each settings read/write. */
 export function logHG(m, event = "", warning = false) {
-  let logDebug = 0;
-  if (GLOBAL_SETTINGS != null) {
-    logDebug = GLOBAL_SETTINGS.debugLevelIndex;
-  }
-  if (logDebug === 0) return;
+  if (debugLevelIndex === 0) return;
   const prefix = event ? `[HG][${event}] ` : "[HG] ";
   if (!warning) console.info(prefix + m);
   else console.warn(prefix + m);

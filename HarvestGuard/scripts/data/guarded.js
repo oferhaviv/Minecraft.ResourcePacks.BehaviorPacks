@@ -22,8 +22,5 @@ export default {
     "minecraft:bamboo_sapling": { rule: "preventAlways" },
     "minecraft:sugar_cane": { rule: "preventBase" },
     "minecraft:farmland": { rule: "preventAlways" }
-  },
-  itemUseOn: {
-    "minecraft:sweet_berry_bush": { rule: "growth", state: "growth", mature: 3 }
   }
 };
