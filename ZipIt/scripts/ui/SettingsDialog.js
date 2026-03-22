@@ -50,10 +50,10 @@ export function createZpSettingsDialogHandlers({
       syncGlobalDebugFromDraft(draft);
 
       // Start with basic settings form
-      await showBasicSettingsTab(player, draft);
+      showBasicSettingsTab(player, draft);
     } catch (error) {
       myLog(`Failed to open settings dialog: ${stringifyError(error)}`, "ZipIt", true);
-      player.sendMessage("ZipIt: failed to open settings dialog. See log.");
+      player.sendMessage(`ZipIt: failed to open settings dialog. ${stringifyError(error)} See log.`);
     }
   }
 
@@ -79,43 +79,14 @@ export function createZpSettingsDialogHandlers({
     
     // 5. Dropdown for Debug level
     form.dropdown("Debug Level", ["none", "basic"], { defaultValue: debugIndex });
-    
-    form.action("Advanced Settings", "");
-    //form.action("Submit", "");
+ 
 
     const res = await form.show(player);
     if (res.canceled) return;
 
-    // Check if action button was clicked
-    // if (res.action === "Advanced Settings") {
-    //   await showAdvancedSettingsTab(player, draft);
-    //   return;
-    // }
-    return; // Exit for debug
-    // const values = res.formValues;
-    // // [0]=Enable, [1]=Sorting, [2]=Miner, [3]=Builder, [4]=Debug dropdown index
-    // draft.enabled = !!values[0];
+    //add update paramets function call here 
     
-    // draft.features = draft.features ?? { inventorySort: false };
-    // draft.features.inventorySort = !!values[1];
-    
-    // draft.profiles = draft.profiles ?? { miner: true, builder: true };
-    // draft.profiles.miner = !!values[2];
-    // draft.profiles.builder = !!values[3];
-
-    // const debugLevel = values[4] === 1 ? "basic" : "none";
-    // draft.debug = draft.debug ?? {};
-    // draft.debug.level = debugLevel;
-
-    // syncGlobalDebugFromDraft(draft);
-
-    // const saved = savePlayerSettings(player, draft);
-    // if (!saved) {
-    //   player.sendMessage("ZipIt: failed to save settings.");
-    //   return;
-    // }
-
-    player.sendMessage("ZipIt: settings saved.");
+    return;
   }
 
   async function showAdvancedSettingsTab(player, baseSettings) {

@@ -116,6 +116,7 @@ if (world.beforeEvents?.playerBreakBlock?.subscribe) {
   logHG("not available in this API version.", "beforeEvents.playerBreakBlock", true);
 }
 
+//usage example: /scriptevent hg:active true
 if (system.afterEvents?.scriptEventReceive?.subscribe) {
   system.afterEvents.scriptEventReceive.subscribe((ev) => {
     logHG(`scriptEventRecieved: id: ${ev.id} ${ev.message}`);
@@ -128,12 +129,9 @@ if (system.afterEvents?.scriptEventReceive?.subscribe) {
       system.runTimeout(() => restoreToDefault(ev.sourceEntity), 2);
       return;
     }
-    if (ev.id === "hg:show settings") {
-      system.runTimeout(() => showSettings(ev.sourceEntity), 2);
-      return;
-    }
-    if (ev.id === "hg:usage") {
-      system.runTimeout(() => ev.sourceEntity.sendMessage(USAGE_MESSAGE), 2);
+    if (ev.id === "hg:show") {
+      const s = getSettings(ev.sourceEntity);
+      ev.sourceEntity.sendMessage("§a[Harvest Guard] " + JSON.stringify(s));
       return;
     }
     if (ev.id === "hg:active") {
@@ -143,15 +141,21 @@ if (system.afterEvents?.scriptEventReceive?.subscribe) {
         return;
       }
       const msg = String(ev.message).toLowerCase();
+      const s = getSettings(player);
       if (msg === "true" || msg === "false") {
-        const s = getSettings(player);
         s.enabled = (msg === "true");   // המרה ל-boolean
         saveSettings(player, s);
-    
-        player.sendMessage(`§a[Harvest Guard] Harvest Guard enabled: ${s.enabled}`);
-      } else {
-        player.sendMessage("Usage: /scriptevent hg:active true|false");
       }
+      if (s.enabled) {
+        player.sendMessage("§a[Harvest Guard] Harvest Guard is enabled.");
+      } else {  
+        player.sendMessage("§a[Harvest Guard] Harvest Guard is disabled.");
+      }
+
+      return;
+    }
+    if (ev.id.toString().startsWith("hg:")) {//show usage if no valid command after hg:
+      system.runTimeout(() => ev.sourceEntity.sendMessage(USAGE_MESSAGE), 2);
       return;
     }
   });
@@ -182,7 +186,7 @@ if (world.beforeEvents?.chatSend?.subscribe) {
       return;
     }
 
-    if (message === ".hg show settings") {
+    if (message === ".hg show") {
       data.cancel = true;
       const s = getSettings(data.sender);
       data.sender.sendMessage("§a[Harvest Guard] Version: " + manifest.header.version);
