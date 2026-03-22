@@ -32,6 +32,7 @@ function shouldApplyRuleForBlock(blockTypeId, settings) {
     return !!settings.bases.sugarCane;
   }
   if (blockTypeId === "minecraft:bamboo") return !!settings.bases.bamboo;
+  if (blockTypeId === "minecraft:bamboo_sapling") return !!settings.bases.bamboo; // no separate setting for bamboo sapling, it will be protected if bamboo is protected
   if (blockTypeId === "minecraft:cactus") return !!settings.bases.cactus;
 
   if (blockTypeId === "minecraft:wheat") return !!settings.crops.wheat;

@@ -27,7 +27,7 @@ set msg="Upload on %timestamp%"
 
 cd /d %GH_folder%
 
-git pull -all
+git pull --all
 
 rem copy source from minecraft folder to GH folder 
 xcopy %minecraft_BP_folder% %GH_folder% /e /y
