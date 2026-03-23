@@ -1,1 +1,5 @@
 .claude/
+
+# Shared module junctions – created by setup.bat via mklink /J, not tracked by git
+HarvestGuard/scripts/shared/
+ZipIt/scripts/shared/
