@@ -6,6 +6,7 @@ import * as mc from "@minecraft/server";
 import { GUARDED, TOOL_GROUPS, USAGE_MESSAGE } from "./data/data.js";
 import { getSettings, saveSettings, restoreToDefault, logHG, cloneDefaultSettings, clearPlayerCache } from "./settingsManager.js";
 import { showMenuWithRetry, clearPlayerMenuState } from "./ui/ui.js";
+import registerValidation from "./devValidation.js"; // DEV ONLY – remove before publishing
 
 
 const { world, system } = mc;
@@ -180,6 +181,7 @@ if (system.afterEvents?.scriptEventReceive?.subscribe) {
           : "§a[Harvest Guard] Harvest Guard is disabled.");
         return;
       }
+      if (ev.id === "hg:validation") return; // DEV ONLY – handled by devValidation.js; remove with the import
       if (ev.id.toString().startsWith("hg:")) {
         const player = ev.sourceEntity;
         if (!player) return;
@@ -204,3 +206,6 @@ if (world.afterEvents?.playerLeave?.subscribe) {
 }
 
 //#endregion
+
+// DEV ONLY – remove before publishing
+registerValidation();
