@@ -1,6 +1,7 @@
-rem ### Download Resource Pack Content from github ###
+
 @echo off
-echo Warniing, you are about to copy content from GitHub to Game folder
+echo ### Download Resource Pack Content from github ###
+echo Warnning, you are about to copy content from GitHub to Game folder
 pause
 
 

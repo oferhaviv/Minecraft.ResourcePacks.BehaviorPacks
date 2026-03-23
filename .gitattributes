@@ -2,8 +2,8 @@
 * text=auto eol=lf
 
 # Windows batch scripts keep CRLF
-*.bat text eol=crlf
-*.cmd text eol=crlf
+*.bat text eol=lf
+*.cmd text eol=lf
 
 # Explicitly mark binary files
 *.png binary

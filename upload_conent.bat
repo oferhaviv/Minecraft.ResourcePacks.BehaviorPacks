@@ -1,4 +1,8 @@
-rem ### Upload Resource Pack Content to github ###
+@echo off
+echo ### Upload Resource Pack Content to github ###
+echo Warnning, you are about to copy content from GitHub to Game folder
+pause
+
 
 set hour=%time:~0,2%
 if "%hour:~0,1%" == " " set hour=0%hour:~1,1%
@@ -30,14 +34,14 @@ cd /d %GH_folder%
 git pull --all
 
 rem copy source from minecraft folder to GH folder 
-xcopy %minecraft_BP_folder% %GH_folder% /e /y
+xcopy %minecraft_BP_folder% %GH_folder% /e /y /d /z
 
 set minecraft_BP_folder="C:\Users\oferh\AppData\Roaming\Minecraft Bedrock\Users\Shared\games\com.mojang\development_behavior_packs\ZipIt"
 set GH_folder="d:\github\Minecraft.ResourcePacks.BehaviorPacks\ZipIt"
 cd /d %GH_folder%
 
 rem copy source from minecraft folder to GH folder 
-xcopy %minecraft_BP_folder% %GH_folder% /e /y
+xcopy %minecraft_BP_folder% %GH_folder% /e /y /d /z
 
 git add .
 
