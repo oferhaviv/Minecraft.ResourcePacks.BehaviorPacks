@@ -77,7 +77,7 @@ function rowCocoa(dim, ox, rz, floorY) {
   for (let i = 0; i < 3; i++) {
     const x = ox + i * 3;
     setBlock(dim, x,     floorY + 1, rz, "minecraft:jungle_log");
-    setBlock(dim, x + 1, floorY + 1, rz, "minecraft:cocoa", { age: i, direction: 3 });
+    setBlock(dim, x + 1, floorY + 1, rz, "minecraft:cocoa", { age: i, direction: 1 });
   }
 }
 
@@ -223,7 +223,7 @@ function buildEnvironment(player) {
     (rz) => rowFarmland(dim, ox, rz, floorY),                            // Row 14
   ];
 
-  const TOTAL_DEPTH = ROW_BUILDERS.length * 3 + 2; // extra margin at the end
+  const TOTAL_DEPTH = ROW_BUILDERS.length * 2 + 2; // extra margin at the end
 
   // Phase 1 – clear area one z-slice per tick (keeps each tick lightweight).
   // dz=-1 starts at tick 2; dz=TOTAL_DEPTH-1 finishes at tick 2+TOTAL_DEPTH.
@@ -239,7 +239,7 @@ function buildEnvironment(player) {
   const P2_START = 3 + TOTAL_DEPTH + 5;
   ROW_BUILDERS.forEach((build, i) => {
     system.runTimeout(() => {
-      try { build(oz + i * 3); }
+      try { build(oz + i * 2); }
       catch (e) { logHG(`row[${i}]: ${e}`, TAG, true, true); }
     }, P2_START + i * 5);
   });
