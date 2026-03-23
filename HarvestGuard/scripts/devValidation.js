@@ -89,7 +89,7 @@ function rowMelonStem(dim, ox, rz, floorY) {
     setBlock(dim, ox + 1 + i, floorY + 1, rz, "minecraft:melon_stem", { growth: i * 2 });
   }
   setBlock(dim, ox + 6, floorY,     rz, "minecraft:stone");
-  setBlock(dim, ox + 6, floorY + 1, rz, "minecraft:melon");
+  setBlock(dim, ox + 6, floorY + 1, rz, "minecraft:melon_block");
 }
 
 /** Row 8: Pumpkin stem – preventAlways; one pumpkin block adjacent for visual context. */
