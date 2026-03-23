@@ -35,7 +35,6 @@ export default {
     { type: "label",    label: "Protect Vines & Berries" },
     { type: "toggle",   label: "Sweet Berry Bush",           path: "vines.sweetBerryBush" },
     { type: "toggle",   label: "Cave Vines",                 path: "vines.caveVines" },
-    { type: "toggle",   label: "Cave Vines (Head)",          path: "vines.caveVinesHead" },
     { type: "label",    label: "Protect Bases" },
     { type: "toggle",   label: "Sugar Cane",                 path: "bases.sugarCane" },
     { type: "toggle",   label: "Bamboo",                     path: "bases.bamboo" },

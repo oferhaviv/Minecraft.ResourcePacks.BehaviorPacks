@@ -53,7 +53,7 @@ function shouldApplyRuleForBlock(blockTypeId, settings) {
 
   if (blockTypeId === "minecraft:sweet_berry_bush") return !!settings.vines?.sweetBerryBush;
   if (blockTypeId === "minecraft:cave_vines") return !!settings.vines?.caveVines;
-  if (blockTypeId === "minecraft:cave_vines_head_with_berries") return !!settings.vines?.caveVinesHead;
+  if (blockTypeId === "minecraft:cave_vines_head_with_berries") return !!settings.vines?.caveVines;
   if (blockTypeId === "minecraft:cave_vines_body_with_berries") return !!settings.vines?.caveVines; // fix #5
 
   return true;

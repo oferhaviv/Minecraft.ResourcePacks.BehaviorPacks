@@ -24,8 +24,7 @@ export default {
     },
     vines: {
       sweetBerryBush: true,
-      caveVines: true,
-      caveVinesHead: true
+      caveVines: true
     },
     bases: {
       sugarCane: true,
