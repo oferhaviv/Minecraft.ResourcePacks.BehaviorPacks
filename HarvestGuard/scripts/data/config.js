@@ -12,7 +12,8 @@ export default {
         "minecraft:iron_hoe",
         "minecraft:golden_hoe",
         "minecraft:diamond_hoe",
-        "minecraft:netherite_hoe"
+        "minecraft:netherite_hoe",
+        "minecraft:copper_hoe"
       ]
     },
     {
@@ -21,7 +22,8 @@ export default {
         "minecraft:iron_axe",
         "minecraft:golden_axe",
         "minecraft:diamond_axe",
-        "minecraft:netherite_axe"
+        "minecraft:netherite_axe",
+        "minecraft:copper_axe"
       ]
     },
     {
@@ -31,10 +33,12 @@ export default {
         "minecraft:golden_hoe",
         "minecraft:diamond_hoe",
         "minecraft:netherite_hoe",
+        "minecraft:copper_hoe",
         "minecraft:iron_axe",
         "minecraft:golden_axe",
         "minecraft:diamond_axe",
-        "minecraft:netherite_axe"
+        "minecraft:netherite_axe",
+        "minecraft:copper_axe"
       ]
     }
   ],
