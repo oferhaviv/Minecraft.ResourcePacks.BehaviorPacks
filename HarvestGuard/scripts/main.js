@@ -62,13 +62,14 @@ function shouldApplyRuleForBlock(blockTypeId, settings) {
 function applyGuard({ eventName, ev, block, itemStack, player }) {
   try {
     if (!block) return;
+    if (!itemStack) return; // fix #3: exit before clone if no item held
 
-    // Resolve settings first — needed to determine the active tool group (fix #7 / tool feature).
+    // Resolve settings — needed to determine the active tool group.
     const settings = player ? getSettings(player) : cloneDefaultSettings();
 
     // Validate the item against the player's selected tool group.
     const toolGroup = TOOL_GROUPS[settings.toolIndex ?? 0] ?? TOOL_GROUPS[0];
-    if (!itemStack || !toolGroup.includes(itemStack.typeId)) return;
+    if (!toolGroup.includes(itemStack.typeId)) return;
 
     if (!shouldApplyRuleForBlock(block.typeId, settings)) return;
 
@@ -140,13 +141,19 @@ if (system.afterEvents?.scriptEventReceive?.subscribe) {
       if (ev.id === "hg:settings") {
         const player = ev.sourceEntity;
         if (!player) { logHG("sourceEntity is null", "hg:settings", true, true); return; }
-        system.runTimeout(() => showMenuWithRetry(player), 2);
+        system.runTimeout(() => {  // fix #1: guard against player leaving in the 2-tick window
+          try { showMenuWithRetry(player); }
+          catch (e) { logHG(`showMenuWithRetry error: ${e}`, "hg:settings", true, true); }
+        }, 2);
         return;
       }
       if (ev.id === "hg:restore") {
         const player = ev.sourceEntity;
         if (!player) { logHG("sourceEntity is null", "hg:restore", true, true); return; }
-        system.runTimeout(() => restoreToDefault(player), 2);
+        system.runTimeout(() => {  // fix #1: guard against player leaving in the 2-tick window
+          try { restoreToDefault(player); }
+          catch (e) { logHG(`restoreToDefault error: ${e}`, "hg:restore", true, true); }
+        }, 2);
         return;
       }
       if (ev.id === "hg:show") {

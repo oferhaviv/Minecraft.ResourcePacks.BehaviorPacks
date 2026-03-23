@@ -7,7 +7,6 @@ export default {
   version: 1,
   defaults: {
     enabled: false,
-    actionModeIndex: 0,
     toolIndex: 0,
     protectFarmland: true,
     debugLevelIndex: 0,

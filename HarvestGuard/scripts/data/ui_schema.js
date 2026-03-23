@@ -21,7 +21,6 @@ export default {
   title: "Harvest Guard Settings",
   sections: [
     { type: "toggle",   label: "Enable",                     path: "enabled" },
-    { type: "dropdown", label: "Action",                     path: "actionModeIndex", options: ["Always"] },
     { type: "dropdown", label: "Tool",                       path: "toolIndex",       options: toolGroupLabels },
     { type: "label",    label: "Protect Crops" },
     { type: "toggle",   label: "Wheat",                      path: "crops.wheat" },

@@ -25,7 +25,6 @@ export function mergeSettings(saved) {
   sdbg(`mergeSettings IN saved=${JSON.stringify(saved)}`);
 
   if (typeof saved.enabled === "boolean") out.enabled = saved.enabled;
-  if (typeof saved.actionModeIndex === "number") out.actionModeIndex = saved.actionModeIndex;
   if (typeof saved.toolIndex === "number") out.toolIndex = saved.toolIndex;
   if (typeof saved.protectFarmland === "boolean") out.protectFarmland = saved.protectFarmland;
   if (typeof saved.debugLevelIndex === "number") out.debugLevelIndex = saved.debugLevelIndex;
@@ -71,14 +70,14 @@ export function getSettings(player) {
     if (typeof raw !== "string" || raw.length === 0) {
       const defaults = cloneDefaultSettings();
       settingsCache.set(player.id, defaults);
-      return defaults;
+      return cloneDefaultSettings(); // fix #2: return independent clone, not the cached reference
     }
 
     const parsed = JSON.parse(raw);
     sdbg(`getSettings parsed keys=${Object.keys(parsed ?? {}).join(",")}`);
-    const merged = mergeSettings(parsed);  // fix #1: was mergeSettings(DEFAULT_SETTINGS, parsed)
+    const merged = mergeSettings(parsed);
     settingsCache.set(player.id, merged);
-    return merged;
+    return JSON.parse(JSON.stringify(merged)); // fix #2: return independent clone, not the cached reference
   } catch (e) {
     logHG(`getSettings ERROR -> defaults. err=${e}`, "getSettings", true, true);
     const fallback = cloneDefaultSettings();
@@ -106,10 +105,14 @@ export function saveSettings(player, settings) {
 export function restoreToDefault(player) {
   const d = cloneDefaultSettings();
   const ok = saveSettings(player, d);
-  if (ok) {
-    player.sendMessage("§a[Harvest Guard] Restored settings to defaults.");
-  } else {
-    player.sendMessage("§c[Harvest Guard] Failed to restore settings. Please try again.");
+  try { // fix #1: player may have disconnected between scheduling and execution
+    if (ok) {
+      player.sendMessage("§a[Harvest Guard] Restored settings to defaults.");
+    } else {
+      player.sendMessage("§c[Harvest Guard] Failed to restore settings. Please try again.");
+    }
+  } catch (e) {
+    logHG(`restoreToDefault sendMessage error: ${e}`, "restoreToDefault", true, true);
   }
 }
 

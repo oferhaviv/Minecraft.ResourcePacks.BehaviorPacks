@@ -68,7 +68,8 @@ export function applyFormValuesToSettings(values, currentSettings) {
     if (section.type === "toggle") {
       setNested(s, section.path, !!raw);
     } else if (section.type === "dropdown") {
-      setNested(s, section.path, Number(raw ?? 0));
+      const n = Number(raw ?? 0); // fix #6: guard against NaN from malformed formValues
+      setNested(s, section.path, Number.isFinite(n) ? Math.floor(n) : 0);
     }
   }
   return s;
