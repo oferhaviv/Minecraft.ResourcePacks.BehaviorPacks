@@ -1,148 +1,136 @@
+/**
+ * ZipIt – settings menu UI.
+ * Mirrors HarvestGuard's ui.js structure: data-driven form built from ui_schema,
+ * with retry/dedup logic and a clean build/apply split.
+ */
+
 import { ModalFormData } from "@minecraft/server-ui";
-import { logZI, getSettings, saveSettings } from "../settingsManager.js";
+import { system } from "@minecraft/server";
+import { buildUiSections, resolveRuleEnabled } from "../data/ui_schema.js";
+import { logZI, getSettings, saveSettings, mergeSettings } from "../settingsManager.js";
 
-// Keep the dialog logic out of `main.js` to reduce its size.
-export function createZpSettingsDialogHandlers({ RULES }) {
-  const deepClone = (value) => JSON.parse(JSON.stringify(value));
+// Prevent concurrent duplicate menu chains for the same player.
+const openMenuPlayers = new Set();
 
-  const stringifyError = (error) => {
-    try {
-      if (error instanceof Error) return `${error.name}: ${error.message}`;
-      return String(error);
-    } catch {
-      return "Unknown error";
+/** Call on player leave to release the menu-dedup entry for that player. */
+export function clearPlayerMenuState(playerId) {
+  openMenuPlayers.delete(playerId);
+}
+
+function getNested(obj, path) {
+  const parts = path.split(".");
+  let v = obj;
+  for (const p of parts) {
+    if (v == null) return undefined;
+    v = v[p];
+  }
+  return v;
+}
+
+function setNested(obj, path, value) {
+  const parts = path.split(".");
+  let o = obj;
+  for (let i = 0; i < parts.length - 1; i++) {
+    const p = parts[i];
+    if (o[p] == null || typeof o[p] !== "object") o[p] = {};
+    o = o[p];
+  }
+  o[parts[parts.length - 1]] = value;
+}
+
+export function buildMenu(settings, rules) {
+  const sections = buildUiSections(rules);
+  const form = new ModalFormData().title("ZipIt Settings");
+
+  for (const section of sections) {
+    if (section.type === "label") {
+      form.label(section.label);
+    } else if (section.type === "toggle") {
+      form.toggle(section.label, { defaultValue: !!getNested(settings, section.path) });
+    } else if (section.type === "rule") {
+      form.toggle(section.label, { defaultValue: resolveRuleEnabled(settings, section.rule) });
+    } else if (section.type === "dropdown") {
+      // debug.level is stored as "none"/"basic" — convert to index for the dropdown.
+      const val = getNested(settings, section.path);
+      const idx = val === "basic" ? 1 : 0;
+      form.dropdown(section.label, section.options, { defaultValueIndex: idx });
     }
-  };
-
-  function getDebugLevelIndexFromLevel(level) {
-    return level === "basic" ? 1 : 0;
   }
 
-  function getRuleFriendlyName(rule) {
-    if (typeof rule?.friendlyName === "string" && rule.friendlyName.trim() !== "") {
-      return rule.friendlyName.trim();
-    }
+  return form;
+}
 
-    const raw = rule?.id ?? rule?.sourceItem ?? "unknown_rule";
-    const s = String(raw).replace(/^minecraft:/, "").replace(/_/g, " ");
-    return s.replace(/\b\w/g, (m) => m.toUpperCase());
+/**
+ * Form values order matches sections order: formValues[i] is the value for section i.
+ * Labels occupy a slot (typically undefined) so we use section index, not a separate counter.
+ */
+export function applyFormValuesToSettings(values, currentSettings, rules) {
+  const s = mergeSettings(currentSettings);
+  const sections = buildUiSections(rules);
+
+  for (let i = 0; i < sections.length; i++) {
+    if (i >= values.length) break;
+    const section = sections[i];
+    if (section.type === "label") continue;
+
+    const raw = values[i];
+
+    if (section.type === "toggle") {
+      setNested(s, section.path, !!raw);
+    } else if (section.type === "rule") {
+      if (!s.rules) s.rules = {};
+      if (!s.rules[section.ruleId]) s.rules[section.ruleId] = {};
+      s.rules[section.ruleId].enabled = !!raw;
+    } else if (section.type === "dropdown") {
+      // debug.level: index 0 → "none", index 1 → "basic"
+      const n = Number(raw ?? 0);
+      setNested(s, section.path, (Number.isFinite(n) && Math.floor(n) === 1) ? "basic" : "none");
+    }
   }
 
-  function getProfileBasedRuleEnabled(playerSettings, rule) {
-    const ruleProfiles = Array.isArray(rule?.profile) ? rule.profile : [];
-    if (ruleProfiles.length === 0) return rule.enabledByDefault ?? true;
-    return ruleProfiles.some((p) => playerSettings?.profiles?.[p] === true);
-  }
+  return s;
+}
 
-  async function handleZpShowSettings(player) {
-    try {
-      const draft = getSettings(player);
-      showBasicSettingsTab(player, draft);
-    } catch (error) {
-      logZI(`Failed to open settings dialog: ${stringifyError(error)}`, "showSettings", true, true);
-      player.sendMessage(`ZipIt: failed to open settings dialog. ${stringifyError(error)} See log.`);
-    }
-  }
+// Internal retry loop — does not check openMenuPlayers (entry point handles that).
+function _runMenuChain(player, rules, triesLeft, waitTime) {
+  const current = getSettings(player);
+  const form = buildMenu(current, rules);
 
-  async function showBasicSettingsTab(player, baseSettings) {
-    const draft = deepClone(baseSettings);
-    const debugIndex = getDebugLevelIndexFromLevel(draft?.debug?.level);
-
-    const form = new ModalFormData();
-    form.title("ZipIt Settings");
-
-    // 1. Toggle for feature Enable
-    form.toggle("Enable Feature", { defaultValue: !!draft.enabled });
-
-    // 2. Toggle for Sorting
-    form.toggle("Inventory Sort", { defaultValue: !!draft?.features?.inventorySort });
-
-    // 3. Toggle for Miner mode
-    form.toggle("Miner", { defaultValue: !!draft?.profiles?.miner });
-
-    // 4. Toggle for Builder mode
-    form.toggle("Builder", { defaultValue: !!draft?.profiles?.builder });
-
-    // 5. Dropdown for Debug level
-    form.dropdown("Debug Level", ["none", "basic"], { defaultValue: debugIndex });
-
-    const res = await form.show(player);
-    if (res.canceled) return;
-
-    // TODO: apply basic settings form values
-  }
-
-  async function showAdvancedSettingsTab(player, baseSettings) {
-    const draft = deepClone(baseSettings);
-    const debugIndex = getDebugLevelIndexFromLevel(draft?.debug?.level);
-
-    const ruleIds = [];
-    const ruleProfiles = {};
-
-    const form = new ModalFormData();
-    form.title("ZipIt Advanced Settings");
-
-    // One toggle per packing rule
-    for (const rule of RULES) {
-      ruleIds.push(rule.id);
-      const profileEnabled = getProfileBasedRuleEnabled(draft, rule);
-      const explicit = draft?.rules?.[rule.id]?.enabled;
-      const value = typeof explicit === "boolean" ? explicit : profileEnabled;
-      form.toggle(getRuleFriendlyName(rule), { defaultValue: value });
-
-      if (Array.isArray(rule?.profile)) {
-        for (const profile of rule.profile) {
-          ruleProfiles[profile] = ruleProfiles[profile] ?? [];
-          ruleProfiles[profile].push(ruleIds.length - 1);
-        }
-      }
+  form.show(player).then((res) => {
+    if (res.canceled && res.cancelationReason === "UserBusy" && triesLeft > 0) {
+      system.runTimeout(() => _runMenuChain(player, rules, triesLeft - 1, waitTime), waitTime);
+      return; // keep player in openMenuPlayers while retrying
     }
 
-    form.dropdown("Debug Level", ["none", "basic"], { defaultValue: debugIndex });
-    form.action("Submit", "");
+    openMenuPlayers.delete(player.id); // chain is done regardless of outcome
 
-    const res = await form.show(player);
-    if (res.canceled) return;
-
-    const values = res.formValues;
-
-    // Store rule toggles
-    for (let i = 0; i < ruleIds.length; i++) {
-      const ruleId = ruleIds[i];
-      const enabled = !!values[i];
-      const rule = RULES[i];
-
-      const profileEnabled = getProfileBasedRuleEnabled(draft, rule);
-
-      draft.rules = draft.rules ?? {};
-      draft.rules[ruleId] = draft.rules[ruleId] ?? {};
-
-      if (enabled === profileEnabled) {
-        delete draft.rules[ruleId].enabled;
-      } else {
-        draft.rules[ruleId].enabled = enabled;
-      }
-    }
-
-    draft.profiles = draft.profiles ?? { miner: true, builder: true };
-
-    for (const [profileName, ruleIndices] of Object.entries(ruleProfiles)) {
-      const allRulesEnabled = ruleIndices.every((idx) => !!values[idx]);
-      draft.profiles[profileName] = allRulesEnabled;
-    }
-
-    const debugLevel = values[ruleIds.length] === 1 ? "basic" : "none";
-    draft.debug = draft.debug ?? {};
-    draft.debug.level = debugLevel;
-
-    const saved = saveSettings(player, draft);
-    if (!saved) {
-      player.sendMessage("ZipIt: failed to save settings.");
+    if (res.canceled) {
+      logZI(`UI canceled reason=${res.cancelationReason}`, "showMenuWithRetry", true);
       return;
     }
 
-    player.sendMessage("ZipIt: advanced settings saved.");
-  }
+    const fv = res.formValues ?? [];
+    logZI(`formValues len=${fv.length} values=${JSON.stringify(fv)}`, "showMenuWithRetry");
 
-  return { handleZpShowSettings };
+    const next = applyFormValuesToSettings(fv, current, rules);
+    const ok = saveSettings(player, next);
+
+    if (ok) {
+      player.sendMessage("§a[ZipIt] Settings saved.");
+      logZI(`Saved settings for ${player.name}: ${JSON.stringify(next)}`, "showMenuWithRetry");
+    } else {
+      player.sendMessage("§c[ZipIt] Failed to save settings. Please try again.");
+      logZI(`saveSettings failed for ${player.name}`, "showMenuWithRetry", true, true);
+    }
+  }).catch((e) => {
+    openMenuPlayers.delete(player.id);
+    logZI(`form.show error: ${e}`, "showMenuWithRetry", true, true);
+  });
+}
+
+/** Show the settings menu. Silently skips if a chain is already active for this player. */
+export function showMenuWithRetry(player, rules, triesLeft = 30, waitTime = 2) {
+  if (openMenuPlayers.has(player.id)) return; // deduplicate concurrent chains
+  openMenuPlayers.add(player.id);
+  _runMenuChain(player, rules, triesLeft, waitTime);
 }

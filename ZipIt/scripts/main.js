@@ -2,13 +2,11 @@ import { world, system, ItemStack } from "@minecraft/server";
 import { PACKING_RULES }            from "./data/packing_rules.js";
 import { CONFIG }                   from "./data/config.js";
 import { logZI, getSettings, saveSettings, clearPlayerCache, cloneDefaultSettings } from "./settingsManager.js";
-import { createZpSettingsDialogHandlers } from "./ui/SettingsDialog.js";
+import { showMenuWithRetry, clearPlayerMenuState } from "./ui/SettingsDialog.js";
 
 const SCAN_INTERVAL_TICKS = 20;
 const USAGE_MESSAGE = CONFIG.usageMessage;
 const RULES = Array.isArray(PACKING_RULES) ? PACKING_RULES : [];
-
-const { handleZpShowSettings } = createZpSettingsDialogHandlers({ RULES });
 
 // Cache item-id validation because creating ItemStacks can be expensive (and may throw).
 // itemId -> { ok: boolean, error?: string }
@@ -58,7 +56,7 @@ if (system.afterEvents?.scriptEventReceive?.subscribe) {
       if (ev.id === "zp:debugLevel")    { handleZpDebugLevel(source, args); return; }
       if (ev.id === "zp:restore")       { handleZpRestore(source);     return; }
       if (ev.id === "zp:showSettings" || ev.id === "zp:settings") {
-        handleZpShowSettings(source);
+        showMenuWithRetry(source, RULES);
         return;
       }
       if (ev.id === "zp:usage") {
@@ -196,6 +194,7 @@ if (world.afterEvents.entityInventoryChange?.subscribe) {
 if (world.afterEvents?.playerLeave?.subscribe) {
   world.afterEvents.playerLeave.subscribe((ev) => {
     clearPlayerCache(ev.playerId);
+    clearPlayerMenuState(ev.playerId);
     logZI(`cache cleared for player ${ev.playerId}`, "playerLeave");
   });
 }
