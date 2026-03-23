@@ -1,0 +1,16 @@
+# Enforce LF line endings for all text files
+* text=auto eol=lf
+
+# Windows batch scripts keep CRLF
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+# Explicitly mark binary files
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.zip binary
+*.mcpack binary
+*.mcaddon binary
