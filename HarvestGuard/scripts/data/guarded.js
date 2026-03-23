@@ -16,6 +16,7 @@ export default {
     "minecraft:sweet_berry_bush": { rule: "preventAlways" },
     "minecraft:cave_vines": { rule: "preventAlways" },
     "minecraft:cave_vines_head_with_berries": { rule: "preventAlways" },
+    "minecraft:cave_vines_body_with_berries": { rule: "preventAlways" },
     "minecraft:reeds": { rule: "preventBase" },
     "minecraft:bamboo": { rule: "preventBase" },
     "minecraft:cactus": { rule: "preventBase" },

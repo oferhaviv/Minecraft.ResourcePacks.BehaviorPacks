@@ -5,8 +5,16 @@
 
 import { ModalFormData } from "@minecraft/server-ui";
 import { system } from "@minecraft/server";
-import { UI_SCHEMA } from "../data/data.js";  // fix: removed unused DEFAULT_SETTINGS import
+import { UI_SCHEMA } from "../data/data.js";
 import { getSettings, saveSettings, mergeSettings, logHG } from "../settingsManager.js";
+
+// fix #8: track players with an active menu chain to prevent concurrent duplicates.
+const openMenuPlayers = new Set();
+
+/** Call on player leave to release the menu-dedup entry for that player. */
+export function clearPlayerMenuState(playerId) {
+  openMenuPlayers.delete(playerId);
+}
 
 function getNested(obj, path) {
   const parts = path.split(".");
@@ -53,7 +61,7 @@ export function buildMenu(settings) {
 export function applyFormValuesToSettings(values, currentSettings) {
   const s = mergeSettings(currentSettings);
   for (let i = 0; i < UI_SCHEMA.sections.length; i++) {
-    if (i >= values.length) break;  // fix #9: guard against short formValues array
+    if (i >= values.length) break;
     const section = UI_SCHEMA.sections[i];
     if (section.type === "label") continue;
     const raw = values[i];
@@ -66,15 +74,19 @@ export function applyFormValuesToSettings(values, currentSettings) {
   return s;
 }
 
-export function showMenuWithRetry(player, triesLeft = 30, waitTime = 2) {
+// fix #8: internal retry loop — does not check openMenuPlayers (entry point handles that).
+function _runMenuChain(player, triesLeft, waitTime) {
   const current = getSettings(player);
   const form = buildMenu(current);
 
   form.show(player).then((res) => {
     if (res.canceled && res.cancelationReason === "UserBusy" && triesLeft > 0) {
-      system.runTimeout(() => showMenuWithRetry(player, triesLeft - 1, waitTime), waitTime);
-      return;
+      system.runTimeout(() => _runMenuChain(player, triesLeft - 1, waitTime), waitTime);
+      return; // keep player in openMenuPlayers while retrying
     }
+
+    openMenuPlayers.delete(player.id); // chain is done regardless of outcome
+
     if (res.canceled) {
       logHG(`UI canceled reason=${res.cancelationReason}`, "showMenuWithRetry", true);
       return;
@@ -85,7 +97,7 @@ export function showMenuWithRetry(player, triesLeft = 30, waitTime = 2) {
     fv.forEach((v, i) => logHG(`idx ${i} = ${JSON.stringify(v)}`, "showMenuWithRetry"));
 
     const next = applyFormValuesToSettings(res.formValues ?? [], current);
-    const ok = saveSettings(player, next);  // fix #3: handle save failure
+    const ok = saveSettings(player, next);
     if (ok) {
       player.sendMessage("§a[Harvest Guard] Settings saved.");
       logHG(`Saved settings for ${player.name}: ${JSON.stringify(next)}`, "showMenuWithRetry");
@@ -93,5 +105,16 @@ export function showMenuWithRetry(player, triesLeft = 30, waitTime = 2) {
       player.sendMessage("§c[Harvest Guard] Failed to save settings. Please try again.");
       logHG(`saveSettings failed for ${player.name}`, "showMenuWithRetry", true, true);
     }
+  }).catch((e) => {
+    // fix #3: handle promise rejection (e.g. player disconnects while UI is open).
+    openMenuPlayers.delete(player.id);
+    logHG(`form.show error: ${e}`, "showMenuWithRetry", true, true);
   });
+}
+
+/** Show the settings menu. Silently skips if a chain is already active for this player. */
+export function showMenuWithRetry(player, triesLeft = 30, waitTime = 2) {
+  if (openMenuPlayers.has(player.id)) return; // fix #8: deduplicate concurrent chains
+  openMenuPlayers.add(player.id);
+  _runMenuChain(player, triesLeft, waitTime);
 }

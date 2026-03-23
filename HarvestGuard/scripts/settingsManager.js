@@ -61,7 +61,8 @@ export function mergeSettings(saved) {
 export function getSettings(player) {
   try {
     if (settingsCache.has(player.id)) {
-      return settingsCache.get(player.id);
+      // fix #1/#6: return a defensive clone so callers cannot corrupt the cache by mutation.
+      return JSON.parse(JSON.stringify(settingsCache.get(player.id)));
     }
 
     const HG_SETTINGS_KEY = `${HG_SETTINGS_KEY_ROOT}_${player.id}`;

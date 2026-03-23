@@ -3,9 +3,9 @@
  */
 
 import * as mc from "@minecraft/server";
-import { GUARDED, TOOLS, USAGE_MESSAGE } from "./data/data.js";
+import { GUARDED, TOOL_GROUPS, USAGE_MESSAGE } from "./data/data.js";
 import { getSettings, saveSettings, restoreToDefault, logHG, cloneDefaultSettings, clearPlayerCache } from "./settingsManager.js";
-import { showMenuWithRetry } from "./ui/ui.js";
+import { showMenuWithRetry, clearPlayerMenuState } from "./ui/ui.js";
 
 
 const { world, system } = mc;
@@ -21,7 +21,7 @@ function checkBlockBelowEqual(block) {
     });
     return !!below && below.typeId === block.typeId;
   } catch (e) {
-    // fix #5: out-of-bounds y (e.g. y=-64) or chunk not loaded — treat as base block (protect it)
+    // Out-of-bounds y (e.g. y=-64) or chunk not loaded — treat as base block (protect it).
     logHG(`checkBlockBelowEqual error: ${e}`, "checkBlockBelowEqual", true, true);
     return false;
   }
@@ -38,7 +38,7 @@ function shouldApplyRuleForBlock(blockTypeId, settings) {
     return !!settings.bases.sugarCane;
   }
   if (blockTypeId === "minecraft:bamboo") return !!settings.bases.bamboo;
-  if (blockTypeId === "minecraft:bamboo_sapling") return !!settings.bases.bamboo; // no separate setting for bamboo sapling, it will be protected if bamboo is protected
+  if (blockTypeId === "minecraft:bamboo_sapling") return !!settings.bases.bamboo;
   if (blockTypeId === "minecraft:cactus") return !!settings.bases.cactus;
 
   if (blockTypeId === "minecraft:wheat") return !!settings.crops.wheat;
@@ -54,6 +54,7 @@ function shouldApplyRuleForBlock(blockTypeId, settings) {
   if (blockTypeId === "minecraft:sweet_berry_bush") return !!settings.vines?.sweetBerryBush;
   if (blockTypeId === "minecraft:cave_vines") return !!settings.vines?.caveVines;
   if (blockTypeId === "minecraft:cave_vines_head_with_berries") return !!settings.vines?.caveVinesHead;
+  if (blockTypeId === "minecraft:cave_vines_body_with_berries") return !!settings.vines?.caveVines; // fix #5
 
   return true;
 }
@@ -62,10 +63,13 @@ function applyGuard({ eventName, ev, block, itemStack, player }) {
   try {
     if (!block) return;
 
-    // Check if the item is one of the allowed tools
-    if (!itemStack || !TOOLS.includes(itemStack.typeId)) return;
-
+    // Resolve settings first — needed to determine the active tool group (fix #7 / tool feature).
     const settings = player ? getSettings(player) : cloneDefaultSettings();
+
+    // Validate the item against the player's selected tool group.
+    const toolGroup = TOOL_GROUPS[settings.toolIndex ?? 0] ?? TOOL_GROUPS[0];
+    if (!itemStack || !toolGroup.includes(itemStack.typeId)) return;
+
     if (!shouldApplyRuleForBlock(block.typeId, settings)) return;
 
     const states = block?.permutation?.getAllStates?.() ?? {};
@@ -105,7 +109,6 @@ function applyGuard({ eventName, ev, block, itemStack, player }) {
       if (reason) logHG(`CANCELLED ${block.typeId} reason=${reason}`, eventName, true);
     }
   } catch (e) {
-    // fix #4: prevent unhandled exceptions from breaking the before-event handler for all players
     logHG(`applyGuard error: ${e}`, eventName, true, true);
   }
 }
@@ -131,64 +134,64 @@ if (world.beforeEvents?.playerBreakBlock?.subscribe) {
 //usage example: /scriptevent hg:active true
 if (system.afterEvents?.scriptEventReceive?.subscribe) {
   system.afterEvents.scriptEventReceive.subscribe((ev) => {
-    logHG(`scriptEventRecieved: id: ${ev.id} ${ev.message}`);
+    try { // fix #4: outer try/catch so no single handler error kills the subscriber
+      logHG(`scriptEventRecieved: id: ${ev.id} ${ev.message}`);
 
-    if (ev.id === "hg:settings") {
-      const player = ev.sourceEntity;
-      if (!player) { logHG("sourceEntity is null", "hg:settings", true, true); return; }  // fix #2
-      system.runTimeout(() => showMenuWithRetry(player), 2);
-      return;
-    }
-    if (ev.id === "hg:restore") {
-      const player = ev.sourceEntity;
-      if (!player) { logHG("sourceEntity is null", "hg:restore", true, true); return; }  // fix #2
-      system.runTimeout(() => restoreToDefault(player), 2);
-      return;
-    }
-    if (ev.id === "hg:show") {
-      const player = ev.sourceEntity;
-      if (!player) { logHG("sourceEntity is null", "hg:show", true, true); return; }  // fix #2
-      const s = getSettings(player);
-      player.sendMessage("[Harvest Guard] " + JSON.stringify(s));
-      return;
-    }
-    if (ev.id === "hg:active") {
-      const player = ev.sourceEntity;
-      if (!player) {
-        logHG("player is null", "hg:active", true, true);
+      if (ev.id === "hg:settings") {
+        const player = ev.sourceEntity;
+        if (!player) { logHG("sourceEntity is null", "hg:settings", true, true); return; }
+        system.runTimeout(() => showMenuWithRetry(player), 2);
         return;
       }
-      const msg = String(ev.message).toLowerCase();
-      const s = getSettings(player);
-      if (msg === "true" || msg === "false") {
-        s.enabled = (msg === "true");
-        if (!saveSettings(player, s)) {  // fix #3: handle save failure
-          player.sendMessage("§c[Harvest Guard] Failed to save settings. Please try again.");
-          return;
+      if (ev.id === "hg:restore") {
+        const player = ev.sourceEntity;
+        if (!player) { logHG("sourceEntity is null", "hg:restore", true, true); return; }
+        system.runTimeout(() => restoreToDefault(player), 2);
+        return;
+      }
+      if (ev.id === "hg:show") {
+        const player = ev.sourceEntity;
+        if (!player) { logHG("sourceEntity is null", "hg:show", true, true); return; }
+        const s = getSettings(player);
+        player.sendMessage("[Harvest Guard] " + JSON.stringify(s));
+        return;
+      }
+      if (ev.id === "hg:active") {
+        const player = ev.sourceEntity;
+        if (!player) { logHG("player is null", "hg:active", true, true); return; }
+        const msg = String(ev.message).toLowerCase();
+        const s = getSettings(player); // fix #1/#6: getSettings returns a clone — safe to mutate
+        if (msg === "true" || msg === "false") {
+          s.enabled = (msg === "true");
+          if (!saveSettings(player, s)) {
+            player.sendMessage("§c[Harvest Guard] Failed to save settings. Please try again.");
+            return;
+          }
         }
+        player.sendMessage(s.enabled
+          ? "§a[Harvest Guard] Harvest Guard is enabled."
+          : "§a[Harvest Guard] Harvest Guard is disabled.");
+        return;
       }
-      if (s.enabled) {
-        player.sendMessage("§a[Harvest Guard] Harvest Guard is enabled.");
-      } else {
-        player.sendMessage("§a[Harvest Guard] Harvest Guard is disabled.");
+      if (ev.id.toString().startsWith("hg:")) {
+        const player = ev.sourceEntity;
+        if (!player) return;
+        system.runTimeout(() => player.sendMessage(USAGE_MESSAGE), 2);
+        return;
       }
-      return;
-    }
-    if (ev.id.toString().startsWith("hg:")) { //show usage if no valid command after hg:
-      const player = ev.sourceEntity;
-      if (!player) return;  // fix #2
-      system.runTimeout(() => player.sendMessage(USAGE_MESSAGE), 2);
-      return;
+    } catch (e) {
+      logHG(`scriptEvent handler error: ${e}`, "scriptEventReceive", true, true);
     }
   });
 } else {
   logHG("not available in this API version.", "system.afterEvents.scriptEventReceive", true, true);
 }
 
-// fix #7: clear cache on player leave to prevent unbounded memory growth
+// Clear both caches when a player leaves to prevent unbounded memory growth.
 if (world.afterEvents?.playerLeave?.subscribe) {
   world.afterEvents.playerLeave.subscribe((ev) => {
     clearPlayerCache(ev.playerId);
+    clearPlayerMenuState(ev.playerId); // fix #8: also remove from menu-dedup set
     logHG(`cache cleared for player ${ev.playerId}`, "playerLeave");
   });
 }
