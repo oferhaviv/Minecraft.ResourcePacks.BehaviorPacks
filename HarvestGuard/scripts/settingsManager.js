@@ -5,7 +5,6 @@
 import { DEFAULT_SETTINGS, HG_SETTINGS_KEY_ROOT } from "./data/data.js";
 
 const settingsCache = new Map(); // player.id -> settings object
-let debugLevelIndex = 0;
 
 function sdbg(message) {
   logHG(message, "SETTINGS", false);
@@ -16,7 +15,7 @@ export function cloneDefaultSettings() {
 }
 
 /** Merge saved settings into defaults (safe migration). */
-export function mergeSettings(defaults, saved) {
+export function mergeSettings(saved) {
   const out = cloneDefaultSettings();
   if (!saved || typeof saved !== "object") {
     sdbg("mergeSettings: saved invalid -> returning defaults");
@@ -76,39 +75,59 @@ export function getSettings(player) {
 
     const parsed = JSON.parse(raw);
     sdbg(`getSettings parsed keys=${Object.keys(parsed ?? {}).join(",")}`);
-    const merged = mergeSettings(DEFAULT_SETTINGS, parsed);
+    const merged = mergeSettings(parsed);  // fix #1: was mergeSettings(DEFAULT_SETTINGS, parsed)
     settingsCache.set(player.id, merged);
-    debugLevelIndex = merged.debugLevelIndex ?? 0;
     return merged;
   } catch (e) {
-    logHG(`getSettings ERROR -> defaults. err=${e}`, "getSettings", true);
-    return cloneDefaultSettings();
+    logHG(`getSettings ERROR -> defaults. err=${e}`, "getSettings", true, true);
+    const fallback = cloneDefaultSettings();
+    if (player?.id) settingsCache.set(player.id, fallback);  // fix #6: cache on error path
+    return fallback;
   }
 }
 
+/** Returns true on success, false on failure. */
 export function saveSettings(player, settings) {
   try {
     const str = JSON.stringify(settings);
     const HG_SETTINGS_KEY = `${HG_SETTINGS_KEY_ROOT}_${player.id}`;
     player.setDynamicProperty(HG_SETTINGS_KEY, str);
     settingsCache.set(player.id, settings);
-    debugLevelIndex = settings.debugLevelIndex ?? 0;
     const back = player.getDynamicProperty(HG_SETTINGS_KEY);
     sdbg(`saveSettings readBack type=${typeof back} value=${String(back).slice(0, 200)}`);
+    return true;
   } catch (e) {
-    sdbg(`saveSettings FAILED err=${e}`);
+    logHG(`saveSettings FAILED err=${e}`, "saveSettings", true, true);  // fix #3: critical + visible
+    return false;
   }
 }
 
 export function restoreToDefault(player) {
   const d = cloneDefaultSettings();
-  saveSettings(player, d);
-  player.sendMessage("§a[Harvest Guard] Restored settings to defaults.");
+  const ok = saveSettings(player, d);
+  if (ok) {
+    player.sendMessage("§a[Harvest Guard] Restored settings to defaults.");
+  } else {
+    player.sendMessage("§c[Harvest Guard] Failed to restore settings. Please try again.");
+  }
 }
 
-/** Log helper; respects debugLevelIndex updated on each settings read/write. */
-export function logHG(m, event = "", warning = false) {
-  if (debugLevelIndex === 0) return;
+/** Removes a player's entry from the settings cache. Call on player leave. */
+export function clearPlayerCache(playerId) {
+  settingsCache.delete(playerId);
+}
+
+/** Log helper. Logging is active when any cached player has debugLevelIndex > 0.
+ *  critical=true bypasses the debug check and always prints. */
+export function logHG(m, event = "", warning = false, critical = false) {
+  if (!critical) {
+    // fix #8: scan cache instead of relying on a single shared scalar
+    let active = false;
+    for (const s of settingsCache.values()) {
+      if ((s.debugLevelIndex ?? 0) > 0) { active = true; break; }
+    }
+    if (!active) return;
+  }
   const prefix = event ? `[HG][${event}] ` : "[HG] ";
   if (!warning) console.info(prefix + m);
   else console.warn(prefix + m);

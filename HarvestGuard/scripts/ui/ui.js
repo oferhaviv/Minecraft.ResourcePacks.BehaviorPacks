@@ -5,7 +5,7 @@
 
 import { ModalFormData } from "@minecraft/server-ui";
 import { system } from "@minecraft/server";
-import { DEFAULT_SETTINGS,UI_SCHEMA } from "../data/data.js";
+import { UI_SCHEMA } from "../data/data.js";  // fix: removed unused DEFAULT_SETTINGS import
 import { getSettings, saveSettings, mergeSettings, logHG } from "../settingsManager.js";
 
 function getNested(obj, path) {
@@ -51,8 +51,9 @@ export function buildMenu(settings) {
  * (labels have a slot too, typically undefined). So we use section index, not a separate counter.
  */
 export function applyFormValuesToSettings(values, currentSettings) {
-  const s = mergeSettings(DEFAULT_SETTINGS, currentSettings);
+  const s = mergeSettings(currentSettings);
   for (let i = 0; i < UI_SCHEMA.sections.length; i++) {
+    if (i >= values.length) break;  // fix #9: guard against short formValues array
     const section = UI_SCHEMA.sections[i];
     if (section.type === "label") continue;
     const raw = values[i];
@@ -84,9 +85,13 @@ export function showMenuWithRetry(player, triesLeft = 30, waitTime = 2) {
     fv.forEach((v, i) => logHG(`idx ${i} = ${JSON.stringify(v)}`, "showMenuWithRetry"));
 
     const next = applyFormValuesToSettings(res.formValues ?? [], current);
-    saveSettings(player, next);
-
-    player.sendMessage("§a[Harvest Guard] Settings saved.");
-    logHG(`Saved settings for ${player.name}: ${JSON.stringify(next)}`, "showMenuWithRetry");
+    const ok = saveSettings(player, next);  // fix #3: handle save failure
+    if (ok) {
+      player.sendMessage("§a[Harvest Guard] Settings saved.");
+      logHG(`Saved settings for ${player.name}: ${JSON.stringify(next)}`, "showMenuWithRetry");
+    } else {
+      player.sendMessage("§c[Harvest Guard] Failed to save settings. Please try again.");
+      logHG(`saveSettings failed for ${player.name}`, "showMenuWithRetry", true, true);
+    }
   });
 }
