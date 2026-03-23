@@ -11,6 +11,8 @@ export default {
     "minecraft:beetroot": { rule: "growth", state: "growth", mature: 7 },
     "minecraft:nether_wart": { rule: "growth", state: "age", mature: 3 },
     "minecraft:cocoa": { rule: "growth", state: "age", mature: 2 },
+    // Breaking the host jungle log drops any attached cocoa pod — guard it the same as the pod itself.
+    "minecraft:jungle_log": { rule: "cocoaBase" },
     "minecraft:melon_stem": { rule: "preventAlways" },
     "minecraft:pumpkin_stem": { rule: "preventAlways" },
     "minecraft:sweet_berry_bush": { rule: "preventAlways" },

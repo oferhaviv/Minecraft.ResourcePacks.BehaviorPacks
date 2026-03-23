@@ -48,6 +48,8 @@ function shouldApplyRuleForBlock(blockTypeId, settings) {
   if (blockTypeId === "minecraft:beetroot") return !!settings.crops.beetroot;
   if (blockTypeId === "minecraft:nether_wart") return !!settings.crops.netherWart;
   if (blockTypeId === "minecraft:cocoa") return !!settings.crops.cocoa;
+  // Jungle log: checked via cocoaBase rule (looks for an attached unripe pod).
+  if (blockTypeId === "minecraft:jungle_log") return !!settings.crops.cocoa;
 
   if (blockTypeId === "minecraft:melon_stem") return !!settings.stems?.melonStem;
   if (blockTypeId === "minecraft:pumpkin_stem") return !!settings.stems?.pumpkinStem;
@@ -103,6 +105,25 @@ function applyGuard({ eventName, ev, block, itemStack, player }) {
         }
       } else {
         logHG(`No numeric state '${cfg.state}' on ${block.typeId}`, eventName, true);
+      }
+    } else if (cfg.rule === "cocoaBase") {
+      // Cancel if any horizontally adjacent face has an unripe cocoa pod (age < 2).
+      // Breaking the jungle log would otherwise destroy the pod without dropping it as a planted crop.
+      const offsets = [{ x: 1, z: 0 }, { x: -1, z: 0 }, { x: 0, z: 1 }, { x: 0, z: -1 }];
+      for (const o of offsets) {
+        try {
+          const neighbor = block.dimension.getBlock({
+            x: block.location.x + o.x,
+            y: block.location.y,
+            z: block.location.z + o.z,
+          });
+          if (neighbor?.typeId === "minecraft:cocoa") {
+            const age = neighbor.permutation.getState("age") ?? 2;
+            if (age < 2) { cancel = true; reason = `cocoaBase(age=${age})`; break; }
+          }
+        } catch (e) {
+          logHG(`cocoaBase neighbor check error: ${e}`, eventName, true, true);
+        }
       }
     }
 
