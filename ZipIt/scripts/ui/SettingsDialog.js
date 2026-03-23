@@ -1,12 +1,8 @@
-import { ActionFormData, ModalFormData } from "@minecraft/server-ui";
+import { ModalFormData } from "@minecraft/server-ui";
+import { logZI, getSettings, saveSettings } from "../settingsManager.js";
 
 // Keep the dialog logic out of `main.js` to reduce its size.
-export function createZpSettingsDialogHandlers({
-  RULES,
-  getPlayerSettings,
-  savePlayerSettings,
-  myLog,
-}) {
+export function createZpSettingsDialogHandlers({ RULES }) {
   const deepClone = (value) => JSON.parse(JSON.stringify(value));
 
   const stringifyError = (error) => {
@@ -20,12 +16,6 @@ export function createZpSettingsDialogHandlers({
 
   function getDebugLevelIndexFromLevel(level) {
     return level === "basic" ? 1 : 0;
-  }
-
-  function syncGlobalDebugFromDraft(draft) {
-    const level = draft?.debug?.level ?? "none";
-    globalThis.GLOBAL_SETTINGS = globalThis.GLOBAL_SETTINGS ?? { debugLevelIndex: 0 };
-    globalThis.GLOBAL_SETTINGS.debugLevelIndex = level === "basic" ? 1 : 0;
   }
 
   function getRuleFriendlyName(rule) {
@@ -46,17 +36,13 @@ export function createZpSettingsDialogHandlers({
 
   async function handleZpShowSettings(player) {
     try {
-      const draft = getPlayerSettings(player);
-      syncGlobalDebugFromDraft(draft);
-
-      // Start with basic settings form
+      const draft = getSettings(player);
       showBasicSettingsTab(player, draft);
     } catch (error) {
-      myLog(`Failed to open settings dialog: ${stringifyError(error)}`, "ZipIt", true);
+      logZI(`Failed to open settings dialog: ${stringifyError(error)}`, "showSettings", true, true);
       player.sendMessage(`ZipIt: failed to open settings dialog. ${stringifyError(error)} See log.`);
     }
   }
-
 
   async function showBasicSettingsTab(player, baseSettings) {
     const draft = deepClone(baseSettings);
@@ -64,29 +50,26 @@ export function createZpSettingsDialogHandlers({
 
     const form = new ModalFormData();
     form.title("ZipIt Settings");
-    
+
     // 1. Toggle for feature Enable
     form.toggle("Enable Feature", { defaultValue: !!draft.enabled });
-    
+
     // 2. Toggle for Sorting
     form.toggle("Inventory Sort", { defaultValue: !!draft?.features?.inventorySort });
-    
+
     // 3. Toggle for Miner mode
     form.toggle("Miner", { defaultValue: !!draft?.profiles?.miner });
-    
+
     // 4. Toggle for Builder mode
     form.toggle("Builder", { defaultValue: !!draft?.profiles?.builder });
-    
+
     // 5. Dropdown for Debug level
     form.dropdown("Debug Level", ["none", "basic"], { defaultValue: debugIndex });
- 
 
     const res = await form.show(player);
     if (res.canceled) return;
 
-    //add update paramets function call here 
-    
-    return;
+    // TODO: apply basic settings form values
   }
 
   async function showAdvancedSettingsTab(player, baseSettings) {
@@ -94,7 +77,7 @@ export function createZpSettingsDialogHandlers({
     const debugIndex = getDebugLevelIndexFromLevel(draft?.debug?.level);
 
     const ruleIds = [];
-    const ruleProfiles = {}; // Map to track which rules belong to which profiles
+    const ruleProfiles = {};
 
     const form = new ModalFormData();
     form.title("ZipIt Advanced Settings");
@@ -107,19 +90,15 @@ export function createZpSettingsDialogHandlers({
       const value = typeof explicit === "boolean" ? explicit : profileEnabled;
       form.toggle(getRuleFriendlyName(rule), { defaultValue: value });
 
-      // Track which profiles this rule belongs to
       if (Array.isArray(rule?.profile)) {
         for (const profile of rule.profile) {
           ruleProfiles[profile] = ruleProfiles[profile] ?? [];
-          ruleProfiles[profile].push(ruleIds.length - 1); // Store index
+          ruleProfiles[profile].push(ruleIds.length - 1);
         }
       }
     }
 
-    // Footer
     form.dropdown("Debug Level", ["none", "basic"], { defaultValue: debugIndex });
-    
-    // Submit button
     form.action("Submit", "");
 
     const res = await form.show(player);
@@ -138,7 +117,6 @@ export function createZpSettingsDialogHandlers({
       draft.rules = draft.rules ?? {};
       draft.rules[ruleId] = draft.rules[ruleId] ?? {};
 
-      // Only store explicit per-rule enabled when it differs from profile defaults.
       if (enabled === profileEnabled) {
         delete draft.rules[ruleId].enabled;
       } else {
@@ -146,28 +124,18 @@ export function createZpSettingsDialogHandlers({
       }
     }
 
-    // Smart profile logic: only enable miner/builder if ALL their rules are toggled
     draft.profiles = draft.profiles ?? { miner: true, builder: true };
 
     for (const [profileName, ruleIndices] of Object.entries(ruleProfiles)) {
       const allRulesEnabled = ruleIndices.every((idx) => !!values[idx]);
-      
-      // Only enable the profile if all its rules are toggled
-      if (allRulesEnabled) {
-        draft.profiles[profileName] = true;
-      } else {
-        // If not all rules are toggled, disable the profile
-        draft.profiles[profileName] = false;
-      }
+      draft.profiles[profileName] = allRulesEnabled;
     }
 
     const debugLevel = values[ruleIds.length] === 1 ? "basic" : "none";
     draft.debug = draft.debug ?? {};
     draft.debug.level = debugLevel;
 
-    syncGlobalDebugFromDraft(draft);
-
-    const saved = savePlayerSettings(player, draft);
+    const saved = saveSettings(player, draft);
     if (!saved) {
       player.sendMessage("ZipIt: failed to save settings.");
       return;
@@ -178,4 +146,3 @@ export function createZpSettingsDialogHandlers({
 
   return { handleZpShowSettings };
 }
-
