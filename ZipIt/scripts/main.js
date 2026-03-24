@@ -34,6 +34,11 @@ const disabledRuleIds = new Set();
 const pendingPlayers = new Set();
 let flushScheduled = false;
 
+// BUG-07: ZipIt's own setItem calls re-trigger entityInventoryChange.
+// Track the tick each player was last processed; skip re-processing within the cooldown window.
+const lastProcessedTick = new Map(); // playerId → system.currentTick value
+const PROCESS_COOLDOWN_TICKS = 5;
+
 // ─── Script event commands ────────────────────────────────────────────────────
 // /scriptevent zp:show -> shows the settings to player
 // /scriptevent zp:active <true|false> -> allows the player to quickly enable/disable packing without opening the full menu
@@ -144,6 +149,7 @@ if (world.afterEvents?.playerLeave?.subscribe) {
   world.afterEvents.playerLeave.subscribe((ev) => {
     clearPlayerCache(ev.playerId);
     clearPlayerMenuState(ev.playerId);
+    lastProcessedTick.delete(ev.playerId);
     logZI(`cache cleared for player ${ev.playerId}`, "playerLeave");
   });
 }
@@ -167,22 +173,34 @@ function schedulePlayerProcess(player) {
 
 function processPlayer(player) {
   if (!player) return;
-  const container = player.getComponent("minecraft:inventory")?.container;
-  if (!container || !container.isValid) return;
+  try {
+    // BUG-07: skip if we just processed this player — our own setItem calls re-fire the inventory event.
+    const now  = system.currentTick;
+    const last = lastProcessedTick.get(player.id) ?? -Infinity;
+    if (now - last < PROCESS_COOLDOWN_TICKS) return;
 
-  const playerSettings = getSettings(player);
-  if (!playerSettings?.enabled) return;
+    const container = player.getComponent("minecraft:inventory")?.container;
+    if (!container || !container.isValid) return;
 
-  for (const rule of RULES) {
-    const resolvedRuleSettings = resolveRuleSettings(playerSettings, rule);
-    if (!resolvedRuleSettings.enabled) continue;
-    tryExecutePackingRule(container, rule, resolvedRuleSettings);
+    const playerSettings = getSettings(player);
+    if (!playerSettings?.enabled) return;
+
+    lastProcessedTick.set(player.id, now);
+
+    for (const rule of RULES) {
+      const resolvedRuleSettings = resolveRuleSettings(playerSettings, rule);
+      if (!resolvedRuleSettings.enabled) continue;
+      tryExecutePackingRule(player, container, rule, resolvedRuleSettings);
+    }
+  } catch (error) {
+    // BUG-06: player entity may be invalid (disconnected between queue and flush).
+    logZI(`processPlayer: ${stringifyError(error)}`, "processPlayer", true, true);
   }
 }
 
 // ─── Packing rule execution ───────────────────────────────────────────────────
 
-function tryExecutePackingRule(container, rule, ruleSettings) {
+function tryExecutePackingRule(player, container, rule, ruleSettings) {
   const ruleKey = rule?.id ?? rule?.sourceItem ?? rule?.targetItem;
   if (ruleKey && disabledRuleIds.has(ruleKey)) return;
 
@@ -225,7 +243,9 @@ function tryExecutePackingRule(container, rule, ruleSettings) {
         "packRule", true, true
       );
       if (removedAmount > 0 && !placeItemsDeterministically(container, rule.sourceItem, removedAmount)) {
-        logZI(`Rule '${ruleKey}': rollback failed`, "packRule", true, true);
+        // BUG-03: rollback failed — items are lost; notify player visibly.
+        logZI(`Rule '${ruleKey}': rollback failed — ${removedAmount}x ${rule.sourceItem} lost`, "packRule", true, true);
+        player.sendMessage(`§c[ZipIt] Error: lost ${removedAmount}x ${rule.sourceItem} during packing. Please report this.`);
       }
       return;
     }
@@ -233,7 +253,9 @@ function tryExecutePackingRule(container, rule, ruleSettings) {
     if (!placeItemsDeterministically(container, rule.targetItem, packedCount)) {
       logZI(`Rule '${ruleKey}': failed placing target items`, "packRule", true, true);
       if (!placeItemsDeterministically(container, rule.sourceItem, sourceToRemove)) {
-        logZI(`Rule '${ruleKey}': rollback failed`, "packRule", true, true);
+        // BUG-03: rollback failed — items are lost; notify player visibly.
+        logZI(`Rule '${ruleKey}': rollback failed — ${sourceToRemove}x ${rule.sourceItem} lost`, "packRule", true, true);
+        player.sendMessage(`§c[ZipIt] Error: lost ${sourceToRemove}x ${rule.sourceItem} during packing. Please report this.`);
       }
     }
   } catch (error) {

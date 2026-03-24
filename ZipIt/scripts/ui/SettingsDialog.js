@@ -93,43 +93,56 @@ export function applyFormValuesToSettings(values, currentSettings, rules) {
 
 // Internal retry loop — does not check openMenuPlayers (entry point handles that).
 function _runMenuChain(player, rules, triesLeft, waitTime) {
-  const current = getSettings(player);
-  const form = buildMenu(current, rules);
-
-  form.show(player).then((res) => {
-    if (res.canceled && res.cancelationReason === "UserBusy" && triesLeft > 0) {
-      system.runTimeout(() => _runMenuChain(player, rules, triesLeft - 1, waitTime), waitTime);
-      return; // keep player in openMenuPlayers while retrying
-    }
-
-    openMenuPlayers.delete(player.id); // chain is done regardless of outcome
-
-    if (res.canceled) {
-      logZI(`UI canceled reason=${res.cancelationReason}`, "showMenuWithRetry", true);
+  try {
+    // BUG-04: player may have disconnected during a retry delay.
+    // isValid is a property (not a method) in @minecraft/server 2.5.0.
+    if (!player?.isValid) {
+      openMenuPlayers.delete(player?.id);
       return;
     }
 
-    const fv = res.formValues ?? [];
-    logZI(`formValues len=${fv.length} values=${JSON.stringify(fv)}`, "showMenuWithRetry");
+    const current = getSettings(player);
+    const form = buildMenu(current, rules);
 
-    const next = applyFormValuesToSettings(fv, current, rules);
-    const ok = saveSettings(player, next);
+    form.show(player).then((res) => {
+      if (res.canceled && res.cancelationReason === "UserBusy" && triesLeft > 0) {
+        system.runTimeout(() => _runMenuChain(player, rules, triesLeft - 1, waitTime), waitTime);
+        return; // keep player in openMenuPlayers while retrying
+      }
 
-    if (ok) {
-      player.sendMessage("§a[ZipIt] Settings saved.");
-      logZI(`Saved settings for ${player.name}: ${JSON.stringify(next)}`, "showMenuWithRetry");
-    } else {
-      player.sendMessage("§c[ZipIt] Failed to save settings. Please try again.");
-      logZI(`saveSettings failed for ${player.name}`, "showMenuWithRetry", true, true);
-    }
-  }).catch((e) => {
-    openMenuPlayers.delete(player.id);
-    logZI(`form.show error: ${e}`, "showMenuWithRetry", true, true);
-  });
+      openMenuPlayers.delete(player.id); // chain is done regardless of outcome
+
+      if (res.canceled) {
+        logZI(`UI canceled reason=${res.cancelationReason}`, "showAdvMenuWithRetry", true);
+        return;
+      }
+
+      const fv = res.formValues ?? [];
+      logZI(`formValues len=${fv.length} values=${JSON.stringify(fv)}`, "showAdvMenuWithRetry");
+
+      const next = applyFormValuesToSettings(fv, current, rules);
+      const ok = saveSettings(player, next);
+
+      if (ok) {
+        player.sendMessage("§a[ZipIt] Settings saved.");
+        logZI(`Saved settings for ${player.name}: ${JSON.stringify(next)}`, "showAdvMenuWithRetry");
+      } else {
+        player.sendMessage("§c[ZipIt] Failed to save settings. Please try again.");
+        logZI(`saveSettings failed for ${player.name}`, "showAdvMenuWithRetry", true, true);
+      }
+    }).catch((e) => {
+      openMenuPlayers.delete(player.id);
+      logZI(`form.show error: ${e}`, "showAdvMenuWithRetry", true, true);
+    });
+  } catch (e) {
+    // BUG-05: any synchronous throw (e.g. getSettings failure) must still release the dedup lock.
+    openMenuPlayers.delete(player?.id);
+    logZI(`_runMenuChain error: ${e}`, "showAdvMenuWithRetry", true, true);
+  }
 }
 
 /** Show the settings menu. Silently skips if a chain is already active for this player. */
-export function showMenuWithRetry(player, rules, triesLeft = 30, waitTime = 2) {
+export function showAdvMenuWithRetry(player, rules, triesLeft = 30, waitTime = 2) {
   if (openMenuPlayers.has(player.id)) return; // deduplicate concurrent chains
   openMenuPlayers.add(player.id);
   _runMenuChain(player, rules, triesLeft, waitTime);

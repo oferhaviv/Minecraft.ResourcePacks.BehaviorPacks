@@ -44,7 +44,7 @@ The original code `container.isValid` was correct. The v1.0.2 change to `isValid
 
 ### BUG-03 · Item loss when partial removal rollback fails
 **File:** `scripts/main.js` → `tryExecutePackingRule()`
-**Status:** Open
+**Status:** Fixed — v1.0.3
 
 If `removeItemsFromContainer` returns fewer items than expected (`removedAmount !== sourceToRemove`),
 the code attempts a rollback via `placeItemsDeterministically`. If that rollback also fails (inventory
@@ -60,7 +60,7 @@ type and count. Consider also dropping the items at the player's feet as a last 
 
 ### BUG-04 · `_runMenuChain` retries on a player who has already left
 **File:** `scripts/ui/SettingsDialog.js` → `_runMenuChain()`
-**Status:** Open
+**Status:** Fixed — v1.0.3
 
 When the UI is retried after a `UserBusy` cancellation, a `system.runTimeout` schedules the next
 attempt. If the player disconnects during the wait, the timeout still fires and calls
@@ -81,7 +81,7 @@ non-fatal but it's avoidable.
 
 ### BUG-05 · `openMenuPlayers` never cleared if `getSettings` throws in `_runMenuChain`
 **File:** `scripts/ui/SettingsDialog.js` → `_runMenuChain()`
-**Status:** Open
+**Status:** Fixed — v1.0.3
 
 `getSettings(player)` is called at the top of `_runMenuChain` without a try/catch. If it throws
 (e.g., corrupt dynamic property data), the function exits immediately without calling
@@ -98,7 +98,7 @@ the catch block before re-throwing or logging.
 
 ### BUG-06 · `processPlayer` does not validate the player entity before operating
 **File:** `scripts/main.js` → `processPlayer()`
-**Status:** Open
+**Status:** Fixed — v1.0.3
 
 Players are added to `pendingPlayers` in the `entityInventoryChange` handler and then processed on the
 next microtask via `system.run`. If a player disconnects between being queued and being flushed, the
@@ -113,7 +113,7 @@ if the call is inside a try/catch — but `getComponent` is called before any tr
 
 ### BUG-07 · ZipIt's own `setItem` calls re-trigger `entityInventoryChange`, causing a processing loop
 **File:** `scripts/main.js` — inventory subscription + `tryExecutePackingRule`
-**Status:** Open
+**Status:** Fixed — v1.0.3
 
 Every `container.setItem(...)` call inside `tryExecutePackingRule` fires `entityInventoryChange` for
 that player. This queues the player again in `pendingPlayers` and schedules another `system.run` flush.
@@ -227,11 +227,11 @@ the engine but effectively hidden.
 |----|----------|------|-------------|--------|
 | BUG-01 | Critical | main.js | Target capacity ignores freed source slots → packing skips on full inventory | Fixed v1.0.2 |
 | BUG-02 | Critical | main.js | ~~`container.isValid` not called as method~~ — misdiagnosed, `isValid` IS a property in 2.5.0; revert applied | Won't Fix |
-| BUG-03 | Critical | main.js | Rollback failure silently loses items | Open |
-| BUG-04 | Critical | SettingsDialog.js | Menu retry fires on disconnected player entity | Open |
-| BUG-05 | High | SettingsDialog.js | `getSettings` throw leaves player stuck in `openMenuPlayers` | Open |
-| BUG-06 | High | main.js | `processPlayer` uses stale player reference without `isValid()` check | Open |
-| BUG-07 | High | main.js | Own `setItem` calls re-trigger inventory event → processing loop | Open |
+| BUG-03 | Critical | main.js | Rollback failure silently loses items | Fixed v1.0.3 |
+| BUG-04 | Critical | SettingsDialog.js | Menu retry fires on disconnected player entity | Fixed v1.0.3 |
+| BUG-05 | High | SettingsDialog.js | `getSettings` throw leaves player stuck in `openMenuPlayers` | Fixed v1.0.3 |
+| BUG-06 | High | main.js | `processPlayer` uses stale player reference without `isValid()` check | Fixed v1.0.3 |
+| BUG-07 | High | main.js | Own `setItem` calls re-trigger inventory event → processing loop | Fixed v1.0.3 |
 | BUG-08 | Medium | multiple | `inventorySort` feature toggle exists but is never implemented | Open |
 | BUG-09 | Medium | main.js + ui_schema.js | Rule enabled resolution logic duplicated; can silently diverge | Open |
 | BUG-10 | Medium | playerSettingsStore.js | `saveSettings` caches mutable reference | Open |
