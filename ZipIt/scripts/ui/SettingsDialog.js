@@ -7,6 +7,7 @@
 import { ModalFormData } from "@minecraft/server-ui";
 import { system } from "@minecraft/server";
 import { buildUiSections, resolveRuleEnabled } from "../data/ui_schema.js";
+import { logZI, getSettings, saveSettings, mergeSettings } from "../settingsManager.js";
 
 /**
  * What a rule's enabled state would be from profiles alone, ignoring any explicit per-rule override.
@@ -17,7 +18,6 @@ function profileDefault(settings, rule) {
   if (profiles.length === 0) return rule.enabledByDefault ?? true;
   return profiles.some((p) => settings?.profiles?.[p] === true);
 }
-import { logZI, getSettings, saveSettings, mergeSettings } from "../settingsManager.js";
 
 // Prevent concurrent duplicate menu chains for the same player.
 const openMenuPlayers = new Set();

@@ -65,7 +65,7 @@ if (system.afterEvents?.scriptEventReceive?.subscribe) {
       if (ev.id === "zp:validation")    { /* DEV ONLY – remove before publishing */ registerValidation(source); return; }
       if (ev.id === "zp:settings") { showMenuWithRetry(source, RULES); return; }
       if (ev.id === "zp:advance") {  showMenuWithRetry(source, RULES, "advanced"); return; }
-      if (ev.id === "zp:") {
+      if (ev.id.startsWith("zp:")) {
         //show usage message for any unrecognized "zp:" command to help users discover features without exposing the full debug menu.
         system.runTimeout(() => source.sendMessage(USAGE_MESSAGE), 2);
         return;
@@ -416,13 +416,6 @@ function resolveRuleSettings(playerSettings, rule) {
   };
 }
 
-function findRuleByKey(key) {
-  const lk = key.toLowerCase();
-  return RULES.find(r =>
-    (r.id         && String(r.id).toLowerCase()         === lk) ||
-    (r.sourceItem && String(r.sourceItem).toLowerCase() === lk)
-  );
-}
 
 function parseBool(value) {
   if (value == null) return undefined;
