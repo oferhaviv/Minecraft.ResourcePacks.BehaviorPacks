@@ -3,6 +3,7 @@ import { PACKING_RULES }            from "./data/packing_rules.js";
 import { CONFIG }                   from "./data/config.js";
 import { logZI, getSettings, saveSettings, clearPlayerCache, cloneDefaultSettings } from "./settingsManager.js";
 import { showAdvMenuWithRetry, clearPlayerMenuState } from "./ui/SettingsDialog.js";
+import { resolveRuleEnabled } from "./data/ui_schema.js";
 import registerValidation from "./devValidation.js"; // DEV ONLY – remove before publishing
 
 const SCAN_INTERVAL_TICKS = 20;
@@ -12,6 +13,8 @@ const RULES = Array.isArray(PACKING_RULES) ? PACKING_RULES : [];
 // Cache item-id validation because creating ItemStacks can be expensive (and may throw).
 // itemId -> { ok: boolean, error?: string }
 const itemIdValidationCache = new Map();
+// BUG-12: cache max stack sizes — getMaxStackSize was creating a new ItemStack on every call.
+const maxStackSizeCache = new Map(); // itemId → number
 function validateItemId(itemId) {
   if (!itemId) return { ok: false, error: "Missing itemId" };
   if (itemIdValidationCache.has(itemId)) return itemIdValidationCache.get(itemId);
@@ -154,6 +157,18 @@ if (world.afterEvents?.playerLeave?.subscribe) {
   });
 }
 
+if (world.afterEvents?.playerJoin?.subscribe) {
+  world.afterEvents.playerJoin.subscribe(() => {
+    // BUG-11: by join time all addons are loaded. Clear previously failed item-id
+    // validation entries so rules can recover if an addon that provides those items
+    // loaded after ZipIt started.
+    for (const [itemId, result] of itemIdValidationCache) {
+      if (!result.ok) itemIdValidationCache.delete(itemId);
+    }
+    disabledRuleIds.clear();
+  });
+}
+
 function schedulePlayerProcess(player) {
   try {
     if (!player) return;
@@ -187,10 +202,17 @@ function processPlayer(player) {
 
     lastProcessedTick.set(player.id, now);
 
+    let didPack = false;
     for (const rule of RULES) {
       const resolvedRuleSettings = resolveRuleSettings(playerSettings, rule);
       if (!resolvedRuleSettings.enabled) continue;
-      tryExecutePackingRule(player, container, rule, resolvedRuleSettings);
+      if (tryExecutePackingRule(player, container, rule, resolvedRuleSettings)) didPack = true;
+    }
+
+    // BUG-08: run sort only when packing actually happened this tick,
+    // so manual inventory rearranging is never disrupted.
+    if (didPack && playerSettings.features?.inventorySort) {
+      sortPlayerInventory(container);
     }
   } catch (error) {
     // BUG-06: player entity may be invalid (disconnected between queue and flush).
@@ -200,9 +222,10 @@ function processPlayer(player) {
 
 // ─── Packing rule execution ───────────────────────────────────────────────────
 
+// Returns true if items were successfully packed, false if skipped or failed.
 function tryExecutePackingRule(player, container, rule, ruleSettings) {
   const ruleKey = rule?.id ?? rule?.sourceItem ?? rule?.targetItem;
-  if (ruleKey && disabledRuleIds.has(ruleKey)) return;
+  if (ruleKey && disabledRuleIds.has(ruleKey)) return false;
 
   const sourceValidation = validateItemId(rule?.sourceItem);
   const targetValidation = validateItemId(rule?.targetItem);
@@ -213,18 +236,18 @@ function tryExecutePackingRule(player, container, rule, ruleSettings) {
       ` (source='${rule?.sourceItem}' err='${sourceValidation.error ?? ""}')`,
       "packRule", true, true
     );
-    return;
+    return false;
   }
 
   try {
     const sourceCount    = countItemInContainer(container, rule.sourceItem);
     const minSourceCount = ruleSettings.minSourceCount ?? rule.defaultMinSourceCount;
 
-    if (sourceCount < minSourceCount) return;
-    if (sourceCount < rule.ratio)     return;
+    if (sourceCount < minSourceCount) return false;
+    if (sourceCount < rule.ratio)     return false;
 
     const packedCount = Math.floor(sourceCount / rule.ratio);
-    if (packedCount <= 0) return;
+    if (packedCount <= 0) return false;
 
     const sourceToRemove = packedCount * rule.ratio;
     const targetCapacity = calculateTargetCapacity(container, rule.targetItem, rule.sourceItem, sourceToRemove);
@@ -233,9 +256,9 @@ function tryExecutePackingRule(player, container, rule, ruleSettings) {
         `Rule '${ruleKey}': insufficient target capacity (need=${packedCount} have=${targetCapacity})`,
         "packRule", true
       );
-      return;
+      return false;
     }
-    const removedAmount  = removeItemsFromContainer(container, rule.sourceItem, sourceToRemove);
+    const removedAmount = removeItemsFromContainer(container, rule.sourceItem, sourceToRemove);
 
     if (removedAmount !== sourceToRemove) {
       logZI(
@@ -243,23 +266,25 @@ function tryExecutePackingRule(player, container, rule, ruleSettings) {
         "packRule", true, true
       );
       if (removedAmount > 0 && !placeItemsDeterministically(container, rule.sourceItem, removedAmount)) {
-        // BUG-03: rollback failed — items are lost; notify player visibly.
         logZI(`Rule '${ruleKey}': rollback failed — ${removedAmount}x ${rule.sourceItem} lost`, "packRule", true, true);
         player.sendMessage(`§c[ZipIt] Error: lost ${removedAmount}x ${rule.sourceItem} during packing. Please report this.`);
       }
-      return;
+      return false;
     }
 
     if (!placeItemsDeterministically(container, rule.targetItem, packedCount)) {
       logZI(`Rule '${ruleKey}': failed placing target items`, "packRule", true, true);
       if (!placeItemsDeterministically(container, rule.sourceItem, sourceToRemove)) {
-        // BUG-03: rollback failed — items are lost; notify player visibly.
         logZI(`Rule '${ruleKey}': rollback failed — ${sourceToRemove}x ${rule.sourceItem} lost`, "packRule", true, true);
         player.sendMessage(`§c[ZipIt] Error: lost ${sourceToRemove}x ${rule.sourceItem} during packing. Please report this.`);
       }
+      return false;
     }
+
+    return true; // packing completed successfully
   } catch (error) {
     logZI(`Rule '${ruleKey}': ${stringifyError(error)}`, "packRule", true, true);
+    return false;
   }
 }
 
@@ -290,12 +315,15 @@ function calculateTargetCapacity(container, targetItemId, sourceItemId, sourceTo
 }
 
 function getMaxStackSize(itemId) {
+  if (maxStackSizeCache.has(itemId)) return maxStackSizeCache.get(itemId);
+  let result = 64;
   try {
     const stack = new ItemStack(itemId, 1);
     const max   = stack?.maxAmount;
-    if (typeof max === "number" && Number.isFinite(max) && max >= 1) return Math.floor(max);
-  } catch { /* fall through */ }
-  return 64;
+    if (typeof max === "number" && Number.isFinite(max) && max >= 1) result = Math.floor(max);
+  } catch { /* fall through — return default 64 */ }
+  maxStackSizeCache.set(itemId, result);
+  return result;
 }
 
 function countItemInContainer(container, itemId) {
@@ -355,20 +383,36 @@ function placeItemsDeterministically(container, itemId, totalAmount) {
   return remaining === 0;
 }
 
+// ─── Inventory sort ───────────────────────────────────────────────────────────
+
+/**
+ * Sorts the player's inventory alphabetically by item typeId.
+ * Preserves full ItemStack objects (enchantments, custom names, NBT).
+ * Empty slots are pushed to the end.
+ * Only called when packing actually happened this tick (BUG-08).
+ */
+function sortPlayerInventory(container) {
+  const items = [];
+  for (let slot = 0; slot < container.size; slot++) {
+    const item = container.getItem(slot);
+    if (item) items.push(item);
+  }
+  if (items.length === 0) return;
+
+  items.sort((a, b) => a.typeId.localeCompare(b.typeId));
+
+  for (let slot = 0; slot < container.size; slot++) {
+    container.setItem(slot, slot < items.length ? items[slot] : undefined);
+  }
+}
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function resolveRuleSettings(playerSettings, rule) {
-  const playerRuleSettings = playerSettings?.rules?.[rule.id];
-  const ruleProfiles       = Array.isArray(rule?.profile) ? rule.profile : [];
-  const profileEnabled     = ruleProfiles.length > 0
-    ? ruleProfiles.some((p) => playerSettings?.profiles?.[p] === true)
-    : rule.enabledByDefault ?? true;
-
+  // BUG-09: use the canonical resolveRuleEnabled from ui_schema.js instead of a local duplicate.
   return {
-    enabled: typeof playerRuleSettings?.enabled === "boolean"
-      ? playerRuleSettings.enabled
-      : profileEnabled,
-    minSourceCount: playerRuleSettings?.minSourceCount ?? rule.defaultMinSourceCount ?? rule.ratio,
+    enabled:        resolveRuleEnabled(playerSettings, rule),
+    minSourceCount: playerSettings?.rules?.[rule.id]?.minSourceCount ?? rule.defaultMinSourceCount ?? rule.ratio,
   };
 }
 

@@ -133,7 +133,7 @@ is already executing for that player. Clear the flag after `processPlayer` retur
 
 ### BUG-08 · `inventorySort` feature is toggled in UI and settings but never implemented
 **Files:** `scripts/data/default_player_settings.js`, `scripts/data/ui_schema.js`, `scripts/main.js`
-**Status:** Open
+**Status:** Fixed — v1.0.4
 
 `features.inventorySort` exists in the default settings, is shown as a toggle in the settings form,
 and is persisted correctly. However, `processPlayer` never reads this flag and there is no sort logic
@@ -148,7 +148,7 @@ toggle until it's ready.
 
 ### BUG-09 · `resolveRuleSettings` (main.js) and `resolveRuleEnabled` (ui_schema.js) duplicate the same logic
 **Files:** `scripts/main.js` → `resolveRuleSettings()`, `scripts/data/ui_schema.js` → `resolveRuleEnabled()`
-**Status:** Open
+**Status:** Fixed — v1.0.4
 
 Both functions compute the effective enabled state for a rule (explicit player override → profile
 default → rule default). They are independent implementations. If the resolution logic changes in one
@@ -165,7 +165,7 @@ settings form and ZipIt does another.
 
 ### BUG-10 · `saveSettings` in the store caches a mutable reference
 **File:** `shared/playerSettingsStore.js` → `saveSettings()`
-**Status:** Open
+**Status:** Fixed — v1.0.4
 
 ```js
 cache.set(player.id, settings); // stores the caller's object directly
@@ -183,7 +183,7 @@ after saving will silently corrupt the in-memory cache without touching the pers
 
 ### BUG-11 · `disabledRuleIds` blacklist has no recovery path
 **File:** `scripts/main.js` → `tryExecutePackingRule()` / `validateItemId()`
-**Status:** Open
+**Status:** Fixed — v1.0.4
 
 If a rule's `sourceItem` or `targetItem` fails `ItemStack` validation on first use, the rule ID is
 added to `disabledRuleIds` permanently for the session. If the item becomes available later in the same
@@ -197,7 +197,7 @@ server restart.
 
 ### BUG-12 · `getMaxStackSize` creates a new `ItemStack` on every call without caching
 **File:** `scripts/main.js` → `getMaxStackSize()`
-**Status:** Open
+**Status:** Fixed — v1.0.4
 
 `ItemStack` construction is noted in the code as expensive. `getMaxStackSize` is called once per rule
 per `calculateTargetCapacity` call, which runs every processing tick for every player. The result never
@@ -210,14 +210,12 @@ changes for a given item ID.
 
 ### BUG-13 · `minSourceCount` is in the schema and merge logic but unreachable by players
 **File:** `scripts/main.js` → `handleZpSet()`, `shared/playerSettingsStore.js` → `mergeSettings()`
-**Status:** Open
+**Status:** Won't Fix — by design
 
-`zp:set <ruleId> <true|false>` only controls `enabled`. `minSourceCount` is correctly persisted and
-merged, but there is no command or UI element to let players read or change it. The field is live in
-the engine but effectively hidden.
-
-**Impact:** Low — players cannot fine-tune the threshold for packing (e.g., "only pack once I have
-27+ iron ingots"). Not broken, just incomplete.
+The power-user commands (`zp:get`, `zp:set`, `zp:debugLevel`) were intentionally removed in favour
+of the `zp:advance` settings UI. `minSourceCount` could be added as a numeric input to the advanced
+menu, but that is a feature addition, not a bug fix. Field remains functional in the engine for future
+use.
 
 ---
 
@@ -232,9 +230,9 @@ the engine but effectively hidden.
 | BUG-05 | High | SettingsDialog.js | `getSettings` throw leaves player stuck in `openMenuPlayers` | Fixed v1.0.3 |
 | BUG-06 | High | main.js | `processPlayer` uses stale player reference without `isValid()` check | Fixed v1.0.3 |
 | BUG-07 | High | main.js | Own `setItem` calls re-trigger inventory event → processing loop | Fixed v1.0.3 |
-| BUG-08 | Medium | multiple | `inventorySort` feature toggle exists but is never implemented | Open |
-| BUG-09 | Medium | main.js + ui_schema.js | Rule enabled resolution logic duplicated; can silently diverge | Open |
-| BUG-10 | Medium | playerSettingsStore.js | `saveSettings` caches mutable reference | Open |
-| BUG-11 | Low | main.js | `disabledRuleIds` blacklist permanent for session; no recovery | Open |
-| BUG-12 | Low | main.js | `getMaxStackSize` not cached; creates ItemStack every call | Open |
-| BUG-13 | Low | main.js | `minSourceCount` per-rule setting unreachable via commands or UI | Open |
+| BUG-08 | Medium | multiple | `inventorySort` feature toggle exists but is never implemented | Fixed v1.0.4 |
+| BUG-09 | Medium | main.js + ui_schema.js | Rule enabled resolution logic duplicated; can silently diverge | Fixed v1.0.4 |
+| BUG-10 | Medium | playerSettingsStore.js | `saveSettings` caches mutable reference | Fixed v1.0.4 |
+| BUG-11 | Low | main.js | `disabledRuleIds` blacklist permanent for session; no recovery | Fixed v1.0.4 |
+| BUG-12 | Low | main.js | `getMaxStackSize` not cached; creates ItemStack every call | Fixed v1.0.4 |
+| BUG-13 | Low | main.js | `minSourceCount` per-rule setting unreachable via commands or UI | Won't Fix |

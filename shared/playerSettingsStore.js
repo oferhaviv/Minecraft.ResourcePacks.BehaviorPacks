@@ -68,8 +68,11 @@ export function createPlayerSettingsStore({ keyPrefix, defaults, merge }) {
    */
   function saveSettings(player, settings) {
     const key = `${keyPrefix}_${player.id}`;
-    player.setDynamicProperty(key, JSON.stringify(settings));
-    cache.set(player.id, settings);
+    const serialised = JSON.stringify(settings);
+    player.setDynamicProperty(key, serialised);
+    // BUG-10: clone before caching so a caller that mutates `settings` after saving
+    // cannot silently corrupt the in-memory cache.
+    cache.set(player.id, JSON.parse(serialised));
     return true;
   }
 
