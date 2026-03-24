@@ -15,28 +15,24 @@ import { PACKING_RULES }     from "./data/packing_rules.js";
 import { logZI, getSettings } from "./settingsManager.js";
 
 const CHEST_SIZE = 27; // single chest slot count
-const TAG = "hg:validation";
+const TAG = "zp:validation";
 
-export default function registerValidation() {
-  system.afterEvents.scriptEventReceive.subscribe((ev) => {
-    if (ev.id !== "zp:validation") return;
+export default function registerValidation(sourceEntity) {
     try{
-    const player = ev.sourceEntity;
-    if (!player) { logZI("sourceEntity is not a player",TAG, true, true); return; }
+      logZI(`Processing validation event from ${sourceEntity.name ?? "unknown source"}`, TAG);
 
-    // Guard: only run for players with debug enabled.
-    const settings = getSettings(player);
-    if ((settings.debug?.level ?? 0) <= 0) {
-      player.sendMessage("§e[ZipIt DEV] Enable Debug Level (Basic) first.");
-      return;
-    }
-    spawnValidationChest(player);
-    
+      // Guard: only run for players with debug enabled.
+      const settings = getSettings(sourceEntity);
+      if ((settings.debug?.level ?? 0) <= 0) {
+        sourceEntity.sendMessage("§e[ZipIt DEV] Enable Debug Level (Basic) first.");
+        return;
+      }
+      spawnValidationChest(sourceEntity);
     } catch (e) {
         logZI(`zp:validation error: ${e}`, "zp:validation", true, true);
-        player.sendMessage(`§c[ZipIt DEV] Failed: ${e}`);
+        sourceEntity.sendMessage(`§c[ZipIt DEV] Failed: ${e}`);
       }
-    });
+    
   }
 
 
