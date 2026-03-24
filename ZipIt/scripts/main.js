@@ -3,6 +3,7 @@ import { PACKING_RULES }            from "./data/packing_rules.js";
 import { CONFIG }                   from "./data/config.js";
 import { logZI, getSettings, saveSettings, clearPlayerCache, cloneDefaultSettings } from "./settingsManager.js";
 import { showMenuWithRetry, clearPlayerMenuState } from "./ui/SettingsDialog.js";
+import registerValidation from "./devValidation.js"; // DEV ONLY – remove before publishing
 
 const SCAN_INTERVAL_TICKS = 20;
 const USAGE_MESSAGE = CONFIG.usageMessage;
@@ -55,6 +56,7 @@ if (system.afterEvents?.scriptEventReceive?.subscribe) {
       if (ev.id === "zp:active")        { handleZpActive(source, args); return; }
       if (ev.id === "zp:debugLevel")    { handleZpDebugLevel(source, args); return; }
       if (ev.id === "zp:restore")       { handleZpRestore(source);     return; }
+      if (ev.id === "zp:validation")    { /* DEV ONLY – remove before publishing */ registerValidation(source); return; }
       if (ev.id === "zp:showSettings" || ev.id === "zp:settings") {
         showMenuWithRetry(source, RULES);
         return;

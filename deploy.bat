@@ -38,9 +38,13 @@ if %ERRORLEVEL% geq 8 ( echo [ERROR] ZipIt shared copy failed && goto :error )
 
 echo.
 echo Done. Both packs deployed.
+pause
 goto :eof
 
 :error
 echo.
 echo Deploy failed. Check output above.
 exit /b 1
+
+:eof
+pause

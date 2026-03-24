@@ -15,32 +15,30 @@ import { PACKING_RULES }     from "./data/packing_rules.js";
 import { logZI, getSettings } from "./settingsManager.js";
 
 const CHEST_SIZE = 27; // single chest slot count
+const TAG = "hg:validation";
 
 export default function registerValidation() {
-  if (!system.afterEvents?.scriptEventReceive?.subscribe) return;
-
   system.afterEvents.scriptEventReceive.subscribe((ev) => {
     if (ev.id !== "zp:validation") return;
-
+    try{
     const player = ev.sourceEntity;
-    if (!player || player.typeId !== "minecraft:player") return;
+    if (!player) { logZI("sourceEntity is not a player",TAG, true, true); return; }
 
     // Guard: only run for players with debug enabled.
-    if ((getSettings(player)?.debug?.level ?? "none") === "none") {
+    const settings = getSettings(player);
+    if ((settings.debug?.level ?? 0) <= 0) {
       player.sendMessage("§e[ZipIt DEV] Enable Debug Level (Basic) first.");
       return;
     }
-
-    system.runTimeout(() => {
-      try {
-        spawnValidationChest(player);
-      } catch (e) {
+    spawnValidationChest(player);
+    
+    } catch (e) {
         logZI(`zp:validation error: ${e}`, "zp:validation", true, true);
         player.sendMessage(`§c[ZipIt DEV] Failed: ${e}`);
       }
-    }, 1);
-  });
-}
+    });
+  }
+
 
 // ─── Chest builder ────────────────────────────────────────────────────────────
 
