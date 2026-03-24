@@ -303,10 +303,10 @@ analysis tools, bundlers, and linters.
 | BUG-11 | Low | main.js | `disabledRuleIds` blacklist permanent for session; no recovery | Fixed v1.0.4 |
 | BUG-12 | Low | main.js | `getMaxStackSize` not cached; creates ItemStack every call | Fixed v1.0.4 |
 | BUG-13 | Low | main.js | `minSourceCount` per-rule setting unreachable via commands or UI | Won't Fix |
-| NEW-14 | Medium | main.js | `sortPlayerInventory` sorts hotbar (slots 0–8) — items rearranged in combat | Open |
-| NEW-15 | Medium | main.js | `zp:` fallback never matches mistyped commands — no player feedback | Open |
-| NEW-16 | Low | main.js | `findRuleByKey` dead code (was used by removed `zp:set`) | Open |
-| NEW-17 | Low | SettingsDialog.js | `import` statement placed after function declaration | Open |
+| NEW-14 | Medium | main.js | `sortPlayerInventory` sorts hotbar (slots 0–8) — items rearranged in combat | Open|
+| NEW-15 | Medium | main.js | `zp:` fallback never matches mistyped commands — no player feedback | Fixed  v1.0.6| |
+| NEW-16 | Low | main.js | `findRuleByKey` dead code (was used by removed `zp:set`) | Fixed  v1.0.6| |
+| NEW-17 | Low | SettingsDialog.js | `import` statement placed after function declaration | Fixed  v1.0.6| |
 
 ---
 
