@@ -261,24 +261,20 @@ function buildEnvironment(player) {
  * Register the hg:validation script-event handler.
  * Called from main.js — see the DEV ONLY import comment there.
  */
-export default function registerValidation() {
-  system.afterEvents.scriptEventReceive.subscribe((ev) => {
-    if (ev.id !== "hg:validation") return;
+export default function registerValidation(sourceEntity) {
     try {
-      const player = ev.sourceEntity;
-      if (!player) { logHG("sourceEntity is null", TAG, true, true); return; }
 
-      const settings = getSettings(player);
+      const settings = getSettings(sourceEntity);
       if ((settings.debugLevelIndex ?? 0) <= 0) {
-        player.sendMessage("§c[HG Validation] Enable Debug mode first (Settings → Debug Level: Basic).");
+        sourceEntity.sendMessage("§c[HG Validation] Enable Debug mode first (Settings → Debug Level: Basic).");
         return;
       }
 
-      player.sendMessage("§e[HG Validation] Building environment…");
-      logHG(`triggered by ${player.name}`, TAG);
-      buildEnvironment(player);
+      sourceEntity.sendMessage("§e[HG Validation] Building environment…");
+      logHG(`triggered by ${sourceEntity.name}`, TAG);
+      buildEnvironment(sourceEntity);
     } catch (e) {
       logHG(`handler error: ${e}`, TAG, true, true);
     }
-  });
+  
 }

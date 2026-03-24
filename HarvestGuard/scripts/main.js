@@ -28,6 +28,7 @@ function checkBlockBelowEqual(block) {
   }
 }
 
+// Returns true if the rule should be applied to the block based on the settings, false if it should be ignored.
 function shouldApplyRuleForBlock(blockTypeId, settings) {
   if (!settings.enabled) return false;
 
@@ -202,7 +203,7 @@ if (system.afterEvents?.scriptEventReceive?.subscribe) {
           : "§a[Harvest Guard] Harvest Guard is disabled.");
         return;
       }
-      if (ev.id === "hg:validation") return; // DEV ONLY – handled by devValidation.js; remove with the import
+      if (ev.id === "hg:validation") { registerValidation(ev.sourceEntity); return; } // DEV ONLY – handled by devValidation.js; remove with the import
       if (ev.id.toString().startsWith("hg:")) {
         const player = ev.sourceEntity;
         if (!player) return;
@@ -228,5 +229,5 @@ if (world.afterEvents?.playerLeave?.subscribe) {
 
 //#endregion
 
-// DEV ONLY – remove before publishing
-registerValidation();
+
+
