@@ -2,7 +2,7 @@ import { world, system, ItemStack } from "@minecraft/server";
 import { PACKING_RULES }            from "./data/packing_rules.js";
 import { CONFIG }                   from "./data/config.js";
 import { logZI, getSettings, saveSettings, clearPlayerCache, cloneDefaultSettings } from "./settingsManager.js";
-import { showMenuWithRetry, clearPlayerMenuState } from "./ui/SettingsDialog.js";
+import { showAdvMenuWithRetry, clearPlayerMenuState } from "./ui/SettingsDialog.js";
 import registerValidation from "./devValidation.js"; // DEV ONLY – remove before publishing
 
 const SCAN_INTERVAL_TICKS = 20;
@@ -35,13 +35,13 @@ const pendingPlayers = new Set();
 let flushScheduled = false;
 
 // ─── Script event commands ────────────────────────────────────────────────────
-// /scriptevent zp:get
-// /scriptevent zp:set <ruleIdOrItemId> <true|false>
-// /scriptevent zp:active <true|false>
-// /scriptevent zp:debugLevel <0-1>
-// /scriptevent zp:restore
-// /scriptevent zp:settings  (alias: zp:showSettings)
-// /scriptevent zp:usage
+// /scriptevent zp:show -> shows the settings to player
+// /scriptevent zp:active <true|false> -> allows the player to quickly enable/disable packing without opening the full menu
+// /scriptevent zp:restore -> restores default settings for the player
+// /scriptevent zp:validation -> DEV ONLY spawns a chest with packable items for testing rules
+// /scriptevent zp:settings -> opens the simple settings menu
+// /scriptevent zp:advance -> opens the full settings menu
+// /scriptevent zp:usage or any zp: command -> shows a usage message to help users discover features without exposing the full debug menu.
 
 if (system.afterEvents?.scriptEventReceive?.subscribe) {
   system.afterEvents.scriptEventReceive.subscribe((ev) => {
@@ -51,17 +51,14 @@ if (system.afterEvents?.scriptEventReceive?.subscribe) {
 
       const args = (ev.message ?? "").trim().split(/\s+/).filter((x) => x.length > 0);
 
-      if (ev.id === "zp:get")           { handleZpGet(source);         return; }
-      if (ev.id === "zp:set")           { handleZpSet(source, args);   return; }
+      if (ev.id === "zp:show")           { handleZpShow(source);         return; } 
       if (ev.id === "zp:active")        { handleZpActive(source, args); return; }
-      if (ev.id === "zp:debugLevel")    { handleZpDebugLevel(source, args); return; }
       if (ev.id === "zp:restore")       { handleZpRestore(source);     return; }
       if (ev.id === "zp:validation")    { /* DEV ONLY – remove before publishing */ registerValidation(source); return; }
-      if (ev.id === "zp:showSettings" || ev.id === "zp:settings") {
-        showMenuWithRetry(source, RULES);
-        return;
-      }
-      if (ev.id === "zp:usage") {
+      if (ev.id === "zp:settings") {  return; }
+      if (ev.id === "zp:advance") {  showAdvMenuWithRetry(source, RULES); return; }
+      if (ev.id === "zp:") {
+        //show usage message for any unrecognized "zp:" command to help users discover features without exposing the full debug menu.
         system.runTimeout(() => source.sendMessage(USAGE_MESSAGE), 2);
         return;
       }
@@ -73,7 +70,7 @@ if (system.afterEvents?.scriptEventReceive?.subscribe) {
 
 // ─── Command handlers ─────────────────────────────────────────────────────────
 
-function handleZpGet(player) {
+function handleZpShow(player) {
   try {
     const settings = getSettings(player);
     player.sendMessage(`ZipIt: enabled=${settings.enabled}`);
@@ -84,39 +81,11 @@ function handleZpGet(player) {
       );
     }
   } catch (error) {
-    logZI(`handleZpGet: ${stringifyError(error)}`, "zp:get", true, true);
+    logZI(`handleZpShow: ${stringifyError(error)}`, "zp:get", true, true);
     player.sendMessage("ZipIt: failed to read settings. See log.");
   }
 }
 
-function handleZpSet(player, args) {
-  if (!args || args.length < 2) { player.sendMessage(USAGE_MESSAGE); return; }
-
-  const key      = args[0];
-  const valueRaw = args[1].toLowerCase();
-  const value    = valueRaw === "true" || valueRaw === "1" || valueRaw === "on";
-
-  const rule = findRuleByKey(key);
-  if (!rule) { player.sendMessage(`ZipIt: unknown item/rule '${key}'.`); return; }
-
-  try {
-    const settings = getSettings(player);
-    if (!settings.rules)         settings.rules = {};
-    if (!settings.rules[rule.id]) settings.rules[rule.id] = {};
-    settings.rules[rule.id].enabled = value;
-
-    if (!saveSettings(player, settings)) {
-      player.sendMessage("ZipIt: failed to save settings.");
-      return;
-    }
-    const msg = `rule '${rule.id}' (${rule.sourceItem}) set to enabled=${value}.`;
-    logZI(msg, "zp:set");
-    player.sendMessage(`ZipIt: ${msg}`);
-  } catch (error) {
-    logZI(`handleZpSet: ${stringifyError(error)}`, "zp:set", true, true);
-    player.sendMessage("ZipIt: failed to update settings. See log.");
-  }
-}
 
 function handleZpActive(player, args) {
   try {
@@ -134,28 +103,6 @@ function handleZpActive(player, args) {
   } catch (error) {
     logZI(`handleZpActive: ${stringifyError(error)}`, "zp:active", true, true);
     player.sendMessage("ZipIt: failed to update active flag. See log.");
-  }
-}
-
-function handleZpDebugLevel(player, args) {
-  try {
-    if (!args || args.length < 1) { player.sendMessage(USAGE_MESSAGE); return; }
-    const n = Number(String(args[0]).trim());
-    if (!Number.isFinite(n)) { player.sendMessage(USAGE_MESSAGE); return; }
-
-    const settings = getSettings(player);
-    settings.debug = settings.debug ?? {};
-    settings.debug.level = n <= 0 ? "none" : "basic";
-
-    if (!saveSettings(player, settings)) {
-      player.sendMessage("ZipIt: failed to save settings.");
-      return;
-    }
-    player.sendMessage(`ZipIt: debugLevel=${settings.debug.level}`);
-    logZI(`debugLevel set to ${settings.debug.level}`, "zp:debugLevel");
-  } catch (error) {
-    logZI(`handleZpDebugLevel: ${stringifyError(error)}`, "zp:debugLevel", true, true);
-    player.sendMessage("ZipIt: failed to update debug level. See log.");
   }
 }
 
@@ -221,7 +168,7 @@ function schedulePlayerProcess(player) {
 function processPlayer(player) {
   if (!player) return;
   const container = player.getComponent("minecraft:inventory")?.container;
-  if (!container || !container.isValid()) return;
+  if (!container || !container.isValid) return;
 
   const playerSettings = getSettings(player);
   if (!playerSettings?.enabled) return;

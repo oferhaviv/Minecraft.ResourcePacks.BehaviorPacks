@@ -32,19 +32,13 @@ the capacity total.
 
 ---
 
-### BUG-02 · `container.isValid` is a method, not a property
-**File:** `scripts/main.js` → `processPlayer()` line ~`if (!container || !container.isValid) return;`
-**Status:** Fixed — v1.0.2
+### BUG-02 · ~~`container.isValid` is a method, not a property~~
+**File:** `scripts/main.js` → `processPlayer()`
+**Status:** Won't Fix — misdiagnosed
 
-`Container.isValid` in `@minecraft/server` 2.x is a **method** (`isValid(): boolean`), not a property.
-Calling `container.isValid` without `()` returns the function reference, which is always truthy.
-`!container.isValid` is therefore always `false` — the guard **never fires**.
-
-**Impact:** If a container becomes invalid mid-operation (player dies, disconnects, or a race occurs),
-subsequent `getItem` / `setItem` calls will throw uncaught exceptions instead of being caught by the
-guard.
-
-**Fix:** `if (!container || !container.isValid()) return;`
+`Container.isValid` is a **property** (not a method) in `@minecraft/server` 2.5.0.
+Calling it as `isValid()` throws `TypeError: not a function` at runtime (confirmed in-game).
+The original code `container.isValid` was correct. The v1.0.2 change to `isValid()` was reverted.
 
 ---
 
@@ -232,7 +226,7 @@ the engine but effectively hidden.
 | ID | Severity | File | Description | Status |
 |----|----------|------|-------------|--------|
 | BUG-01 | Critical | main.js | Target capacity ignores freed source slots → packing skips on full inventory | Fixed v1.0.2 |
-| BUG-02 | Critical | main.js | `container.isValid` not called as method → guard never fires | Fixed v1.0.2 |
+| BUG-02 | Critical | main.js | ~~`container.isValid` not called as method~~ — misdiagnosed, `isValid` IS a property in 2.5.0; revert applied | Won't Fix |
 | BUG-03 | Critical | main.js | Rollback failure silently loses items | Open |
 | BUG-04 | Critical | SettingsDialog.js | Menu retry fires on disconnected player entity | Open |
 | BUG-05 | High | SettingsDialog.js | `getSettings` throw leaves player stuck in `openMenuPlayers` | Open |
