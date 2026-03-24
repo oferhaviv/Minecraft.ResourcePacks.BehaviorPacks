@@ -62,7 +62,13 @@ if (system.afterEvents?.scriptEventReceive?.subscribe) {
       if (ev.id === "zp:show")           { handleZpShow(source);         return; } 
       if (ev.id === "zp:active")        { handleZpActive(source, args); return; }
       if (ev.id === "zp:restore")       { handleZpRestore(source);     return; }
-      if (ev.id === "zp:validation")    { /* DEV ONLY – remove before publishing */ registerValidation(source); return; }
+      if (ev.id === "zp:validation")    { /* DEV ONLY – remove before publishing */
+        if (getSettings(source)?.debug?.level !== "basic") {
+          source.sendMessage("§c[ZipIt] Validation requires Debug Level set to Basic.");
+          return;
+        }
+        registerValidation(source); return;
+      }
       if (ev.id === "zp:settings") { showMenuWithRetry(source, RULES); return; }
       if (ev.id === "zp:advance") {  showMenuWithRetry(source, RULES, "advanced"); return; }
       if (ev.id.startsWith("zp:")) {
