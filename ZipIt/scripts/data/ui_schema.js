@@ -43,7 +43,7 @@ export function resolveRuleEnabled(settings, rule) {
  * Builds the full sections array for the settings form.
  * Rules are grouped: Miner-only, Builder-only, Miner & Builder, then ungrouped.
  */
-export function buildUiSections(rules) {
+export function buildUiSections(rules, settingsType = "basic") {
   const minerOnly  = rules.filter((r) =>  r.profile?.includes("miner") && !r.profile?.includes("builder"));
   const builderOnly = rules.filter((r) => !r.profile?.includes("miner") &&  r.profile?.includes("builder"));
   const shared      = rules.filter((r) =>  r.profile?.includes("miner") &&  r.profile?.includes("builder"));
@@ -56,30 +56,31 @@ export function buildUiSections(rules) {
     rule,
   });
 
-  const sections = [
-    { type: "toggle",   label: "Enable ZipIt",    path: "enabled" },
-    { type: "label",    label: "Profiles" },
-    { type: "toggle",   label: "Miner",            path: "profiles.miner" },
-    { type: "toggle",   label: "Builder",          path: "profiles.builder" },
-    { type: "label",    label: "Features" },
-    { type: "toggle",   label: "Inventory Sort",   path: "features.inventorySort" },
-  ];
-
-  if (minerOnly.length > 0) {
-    sections.push({ type: "label", label: "Miner Items" });
-    for (const r of minerOnly) sections.push(ruleSection(r));
-  }
-  if (builderOnly.length > 0) {
-    sections.push({ type: "label", label: "Builder Items" });
-    for (const r of builderOnly) sections.push(ruleSection(r));
-  }
-  if (shared.length > 0) {
-    sections.push({ type: "label", label: "Miner & Builder Items" });
-    for (const r of shared) sections.push(ruleSection(r));
-  }
-  if (other.length > 0) {
-    sections.push({ type: "label", label: "Items" });
-    for (const r of other) sections.push(ruleSection(r));
+  const sections = [{ type: "toggle",   label: "Enable ZipIt",    path: "enabled" },];
+  if (settingsType === "basic") {
+    sections.push({ type: "label",    label: "Profiles" });
+    sections.push({ type: "toggle",   label: "Miner",            path: "profiles.miner" });
+    sections.push({ type: "toggle",   label: "Builder",          path: "profiles.builder" });
+    sections.push({ type: "label",    label: "Features" });
+    sections.push({ type: "toggle",   label: "Inventory Sort",   path: "features.inventorySort" });
+  } else {
+    sections.push({ type: "toggle",   label: "Inventory Sort",   path: "features.inventorySort" });
+    if (minerOnly.length > 0) {
+      sections.push({ type: "label", label: "Miner Items" });
+      for (const r of minerOnly) sections.push(ruleSection(r));
+    }
+    if (builderOnly.length > 0) {
+      sections.push({ type: "label", label: "Builder Items" });
+      for (const r of builderOnly) sections.push(ruleSection(r));
+    }
+    if (shared.length > 0) {
+      sections.push({ type: "label", label: "Miner & Builder Items" });
+      for (const r of shared) sections.push(ruleSection(r));
+    }
+    if (other.length > 0) {
+      sections.push({ type: "label", label: "Items" });
+      for (const r of other) sections.push(ruleSection(r));
+    }
   }
 
   sections.push({

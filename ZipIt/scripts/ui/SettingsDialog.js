@@ -38,8 +38,8 @@ function setNested(obj, path, value) {
   o[parts[parts.length - 1]] = value;
 }
 
-export function buildMenu(settings, rules) {
-  const sections = buildUiSections(rules);
+export function buildMenu(settings, rules, settingsType = "basic") {
+  const sections = buildUiSections(rules, settingsType);
   const form = new ModalFormData().title("ZipIt Settings");
 
   for (const section of sections) {
@@ -64,9 +64,9 @@ export function buildMenu(settings, rules) {
  * Form values order matches sections order: formValues[i] is the value for section i.
  * Labels occupy a slot (typically undefined) so we use section index, not a separate counter.
  */
-export function applyFormValuesToSettings(values, currentSettings, rules) {
+export function applyFormValuesToSettings(values, currentSettings, rules, settingsType = "basic") {
   const s = mergeSettings(currentSettings);
-  const sections = buildUiSections(rules);
+  const sections = buildUiSections(rules, settingsType);
 
   for (let i = 0; i < sections.length; i++) {
     if (i >= values.length) break;
@@ -92,7 +92,7 @@ export function applyFormValuesToSettings(values, currentSettings, rules) {
 }
 
 // Internal retry loop — does not check openMenuPlayers (entry point handles that).
-function _runMenuChain(player, rules, triesLeft, waitTime) {
+function _runMenuChain(player, rules, triesLeft, waitTime, settingsType = "basic") {
   try {
     // BUG-04: player may have disconnected during a retry delay.
     // isValid is a property (not a method) in @minecraft/server 2.5.0.
@@ -102,7 +102,7 @@ function _runMenuChain(player, rules, triesLeft, waitTime) {
     }
 
     const current = getSettings(player);
-    const form = buildMenu(current, rules);
+    const form = buildMenu(current, rules, settingsType);
 
     form.show(player).then((res) => {
       if (res.canceled && res.cancelationReason === "UserBusy" && triesLeft > 0) {
@@ -120,7 +120,7 @@ function _runMenuChain(player, rules, triesLeft, waitTime) {
       const fv = res.formValues ?? [];
       logZI(`formValues len=${fv.length} values=${JSON.stringify(fv)}`, "showAdvMenuWithRetry");
 
-      const next = applyFormValuesToSettings(fv, current, rules);
+      const next = applyFormValuesToSettings(fv, current, rules, settingsType);
       const ok = saveSettings(player, next);
 
       if (ok) {
@@ -142,8 +142,10 @@ function _runMenuChain(player, rules, triesLeft, waitTime) {
 }
 
 /** Show the settings menu. Silently skips if a chain is already active for this player. */
-export function showAdvMenuWithRetry(player, rules, triesLeft = 30, waitTime = 2) {
+export function showMenuWithRetry(player, rules,settingsType = "basic", triesLeft = 30, waitTime = 2) {
   if (openMenuPlayers.has(player.id)) return; // deduplicate concurrent chains
   openMenuPlayers.add(player.id);
-  _runMenuChain(player, rules, triesLeft, waitTime);
+
+  _runMenuChain(player, rules, triesLeft, waitTime, settingsType);
 }
+

@@ -80,5 +80,5 @@ Versions follow `major.minor.patch`. **Always bump the 3rd (patch) digit** by de
 
 ## Key In-Game Commands
 
-**HarvestGuard:** `hg:settings`, `hg:active`, `hg:restore`, `hg:show`
-**ZipIt:** `zp:get`, `zp:set`, `zp:active`, `zp:debugLevel`, `zp:restore`, `zp:settings`, `zp:usage`
+**HarvestGuard:** `hg:settings`, `hg:active`, `hg:restore`, `hg:show`, `hg:usage` (or any part of `hg:` will show usage)
+**ZipIt:** `zp:settings`, `zp:advance`, `zp:active`, `zp:restore`,`zp:show`,   `zp:usage` (or any part of `zp:` will show usage)

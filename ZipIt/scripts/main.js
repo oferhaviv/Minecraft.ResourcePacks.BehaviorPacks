@@ -2,7 +2,7 @@ import { world, system, ItemStack } from "@minecraft/server";
 import { PACKING_RULES }            from "./data/packing_rules.js";
 import { CONFIG }                   from "./data/config.js";
 import { logZI, getSettings, saveSettings, clearPlayerCache, cloneDefaultSettings } from "./settingsManager.js";
-import { showAdvMenuWithRetry, clearPlayerMenuState } from "./ui/SettingsDialog.js";
+import { showMenuWithRetry,  clearPlayerMenuState } from "./ui/SettingsDialog.js";
 import { resolveRuleEnabled } from "./data/ui_schema.js";
 import registerValidation from "./devValidation.js"; // DEV ONLY – remove before publishing
 
@@ -63,8 +63,8 @@ if (system.afterEvents?.scriptEventReceive?.subscribe) {
       if (ev.id === "zp:active")        { handleZpActive(source, args); return; }
       if (ev.id === "zp:restore")       { handleZpRestore(source);     return; }
       if (ev.id === "zp:validation")    { /* DEV ONLY – remove before publishing */ registerValidation(source); return; }
-      if (ev.id === "zp:settings") {  return; }
-      if (ev.id === "zp:advance") {  showAdvMenuWithRetry(source, RULES); return; }
+      if (ev.id === "zp:settings") { showMenuWithRetry(source, RULES); return; }
+      if (ev.id === "zp:advance") {  showMenuWithRetry(source, RULES, "advanced"); return; }
       if (ev.id === "zp:") {
         //show usage message for any unrecognized "zp:" command to help users discover features without exposing the full debug menu.
         system.runTimeout(() => source.sendMessage(USAGE_MESSAGE), 2);
