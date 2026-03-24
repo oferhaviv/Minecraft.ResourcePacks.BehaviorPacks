@@ -221,7 +221,7 @@ function schedulePlayerProcess(player) {
 function processPlayer(player) {
   if (!player) return;
   const container = player.getComponent("minecraft:inventory")?.container;
-  if (!container || !container.isValid) return;
+  if (!container || !container.isValid()) return;
 
   const playerSettings = getSettings(player);
   if (!playerSettings?.enabled) return;
@@ -261,7 +261,8 @@ function tryExecutePackingRule(container, rule, ruleSettings) {
     const packedCount = Math.floor(sourceCount / rule.ratio);
     if (packedCount <= 0) return;
 
-    const targetCapacity = calculateTargetCapacity(container, rule.targetItem);
+    const sourceToRemove = packedCount * rule.ratio;
+    const targetCapacity = calculateTargetCapacity(container, rule.targetItem, rule.sourceItem, sourceToRemove);
     if (targetCapacity < packedCount) {
       logZI(
         `Rule '${ruleKey}': insufficient target capacity (need=${packedCount} have=${targetCapacity})`,
@@ -269,8 +270,6 @@ function tryExecutePackingRule(container, rule, ruleSettings) {
       );
       return;
     }
-
-    const sourceToRemove = packedCount * rule.ratio;
     const removedAmount  = removeItemsFromContainer(container, rule.sourceItem, sourceToRemove);
 
     if (removedAmount !== sourceToRemove) {
@@ -295,13 +294,28 @@ function tryExecutePackingRule(container, rule, ruleSettings) {
   }
 }
 
-function calculateTargetCapacity(container, targetItemId) {
-  const maxStackSize = getMaxStackSize(targetItemId);
+function calculateTargetCapacity(container, targetItemId, sourceItemId, sourceToRemove) {
+  const maxTargetStack = getMaxStackSize(targetItemId);
   let capacity = 0;
   for (let slot = 0; slot < container.size; slot++) {
     const item = container.getItem(slot);
-    if (!item)                       { capacity += maxStackSize; continue; }
-    if (item.typeId === targetItemId)  capacity += Math.max(0, maxStackSize - item.amount);
+    if (!item)                        { capacity += maxTargetStack; continue; }
+    if (item.typeId === targetItemId)   capacity += Math.max(0, maxTargetStack - item.amount);
+  }
+  // Also count capacity from source slots that will be fully emptied by the planned removal.
+  // Without this, packing silently fails when the only free space is currently occupied by source items.
+  if (sourceItemId && sourceItemId !== targetItemId && sourceToRemove > 0) {
+    let remaining = sourceToRemove;
+    for (let slot = 0; slot < container.size && remaining > 0; slot++) {
+      const item = container.getItem(slot);
+      if (!item || item.typeId !== sourceItemId) continue;
+      if (item.amount <= remaining) {
+        capacity  += maxTargetStack; // this slot will be fully cleared
+        remaining -= item.amount;
+      } else {
+        remaining = 0; // partial removal — slot stays occupied, no new empty slot
+      }
+    }
   }
   return capacity;
 }
