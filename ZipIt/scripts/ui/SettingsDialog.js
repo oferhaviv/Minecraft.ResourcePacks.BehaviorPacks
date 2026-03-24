@@ -7,6 +7,16 @@
 import { ModalFormData } from "@minecraft/server-ui";
 import { system } from "@minecraft/server";
 import { buildUiSections, resolveRuleEnabled } from "../data/ui_schema.js";
+
+/**
+ * What a rule's enabled state would be from profiles alone, ignoring any explicit per-rule override.
+ * Used when saving the advanced menu to decide whether to write or clear an explicit override.
+ */
+function profileDefault(settings, rule) {
+  const profiles = Array.isArray(rule.profile) ? rule.profile : [];
+  if (profiles.length === 0) return rule.enabledByDefault ?? true;
+  return profiles.some((p) => settings?.profiles?.[p] === true);
+}
 import { logZI, getSettings, saveSettings, mergeSettings } from "../settingsManager.js";
 
 // Prevent concurrent duplicate menu chains for the same player.
@@ -78,9 +88,18 @@ export function applyFormValuesToSettings(values, currentSettings, rules, settin
     if (section.type === "toggle") {
       setNested(s, section.path, !!raw);
     } else if (section.type === "rule") {
-      if (!s.rules) s.rules = {};
-      if (!s.rules[section.ruleId]) s.rules[section.ruleId] = {};
-      s.rules[section.ruleId].enabled = !!raw;
+      const toggled = !!raw;
+      // Only write an explicit override when the user's value diverges from what the profile
+      // would produce on its own. If they match, remove any existing override so the profile
+      // stays in control (e.g. toggling miner back on in basic re-enables all miner rules).
+      if (toggled !== profileDefault(s, section.rule)) {
+        if (!s.rules) s.rules = {};
+        if (!s.rules[section.ruleId]) s.rules[section.ruleId] = {};
+        s.rules[section.ruleId].enabled = toggled;
+      } else if (s.rules?.[section.ruleId]) {
+        delete s.rules[section.ruleId].enabled;
+        if (Object.keys(s.rules[section.ruleId]).length === 0) delete s.rules[section.ruleId];
+      }
     } else if (section.type === "dropdown") {
       // debug.level: index 0 → "none", index 1 → "basic"
       const n = Number(raw ?? 0);
@@ -106,7 +125,7 @@ function _runMenuChain(player, rules, triesLeft, waitTime, settingsType = "basic
 
     form.show(player).then((res) => {
       if (res.canceled && res.cancelationReason === "UserBusy" && triesLeft > 0) {
-        system.runTimeout(() => _runMenuChain(player, rules, triesLeft - 1, waitTime), waitTime);
+        system.runTimeout(() => _runMenuChain(player, rules, triesLeft - 1, waitTime, settingsType), waitTime);
         return; // keep player in openMenuPlayers while retrying
       }
 
