@@ -41,6 +41,9 @@ let flushScheduled = false;
 // Track the tick each player was last processed; skip re-processing within the cooldown window.
 const lastProcessedTick = new Map(); // playerId → system.currentTick value
 const PROCESS_COOLDOWN_TICKS = 5;
+// When the cooldown blocks processPlayer, schedule one retry so a legitimate inventory
+// change (e.g. moving items to merge) is not silently dropped.
+const retryScheduled = new Set(); // player IDs with a pending cooldown-retry
 
 // ─── Script event commands ────────────────────────────────────────────────────
 // /scriptevent zp:show -> shows the settings to player
@@ -159,6 +162,7 @@ if (world.afterEvents?.playerLeave?.subscribe) {
     clearPlayerCache(ev.playerId);
     clearPlayerMenuState(ev.playerId);
     lastProcessedTick.delete(ev.playerId);
+    retryScheduled.delete(ev.playerId);
     logZI(`cache cleared for player ${ev.playerId}`, "playerLeave");
   });
 }
@@ -198,7 +202,19 @@ function processPlayer(player) {
     // BUG-07: skip if we just processed this player — our own setItem calls re-fire the inventory event.
     const now  = system.currentTick;
     const last = lastProcessedTick.get(player.id) ?? -Infinity;
-    if (now - last < PROCESS_COOLDOWN_TICKS) return;
+    if (now - last < PROCESS_COOLDOWN_TICKS) {
+      // Don't silently drop this event — schedule one retry at cooldown expiry so a
+      // legitimate change (e.g. moving items between slots for consolidation) is not lost.
+      if (!retryScheduled.has(player.id)) {
+        retryScheduled.add(player.id);
+        const ticksLeft = PROCESS_COOLDOWN_TICKS - (now - last) + 1;
+        system.runTimeout(() => {
+          retryScheduled.delete(player.id);
+          if (player?.isValid) schedulePlayerProcess(player);
+        }, ticksLeft);
+      }
+      return;
+    }
 
     const container = player.getComponent("minecraft:inventory")?.container;
     if (!container || !container.isValid) return;
