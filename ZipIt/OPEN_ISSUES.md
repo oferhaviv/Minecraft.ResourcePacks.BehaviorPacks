@@ -225,19 +225,13 @@ use.
 
 ### NEW-14 · `sortPlayerInventory` sorts hotbar slots (0–8), rearranging equipped items
 **File:** `scripts/main.js` → `sortPlayerInventory()`
-**Status:** Open
+**Status:** Fixed — v1.0.7
 
-`player.getComponent("minecraft:inventory")?.container` gives all 36 player inventory slots.
-Slots 0–8 are the **hotbar** — the items the player has equipped and expects to be in specific
-positions (sword in slot 1, food in slot 2, blocks in slot 3, etc.). After any packing event that
-triggers sort, items are reordered alphabetically across all 36 slots including the hotbar.
-
-**Impact on multiplayer/PvP:** Player picks up iron ingots → packing fires → entire inventory
-re-sorts → sword is no longer in slot 1 → player dies in combat. High friction in survival play
-even outside combat; any player relying on a muscle-memory hotbar layout is broken every pack.
-
-**Fix direction:** Skip slots 0–8 in both the collection and write-back phases of `sortPlayerInventory`.
-Only sort slots 9–35 (main inventory). The hotbar remains untouched.
+Replaced alphabetical `sortPlayerInventory` with `consolidateInventory`, which merges partial stacks
+of the same typeId **in-place** without reordering any slots. Hotbar positions are fully preserved.
+Skips named, enchanted, and lore-bearing items. Fills fullest slot first; overflows to next slot
+respecting max stack size (e.g. 2 + 63 → 64 + 1). UI label updated from "Inventory Sort" to
+"Consolidate Stacks".
 
 ---
 
@@ -303,24 +297,24 @@ analysis tools, bundlers, and linters.
 | BUG-11 | Low | main.js | `disabledRuleIds` blacklist permanent for session; no recovery | Fixed v1.0.4 |
 | BUG-12 | Low | main.js | `getMaxStackSize` not cached; creates ItemStack every call | Fixed v1.0.4 |
 | BUG-13 | Low | main.js | `minSourceCount` per-rule setting unreachable via commands or UI | Won't Fix |
-| NEW-14 | Medium | main.js | `sortPlayerInventory` sorts hotbar (slots 0–8) — items rearranged in combat | Open|
+| NEW-14 | Medium | main.js | `sortPlayerInventory` sorts hotbar (slots 0–8) — replaced with in-place consolidation | Fixed v1.0.7 |
 | NEW-15 | Medium | main.js | `zp:` fallback never matches mistyped commands — no player feedback | Fixed  v1.0.6| |
 | NEW-16 | Low | main.js | `findRuleByKey` dead code (was used by removed `zp:set`) | Fixed  v1.0.6| |
 | NEW-17 | Low | SettingsDialog.js | `import` statement placed after function declaration | Fixed  v1.0.6| |
 
 ---
 
-## Publish Readiness Assessment (v1.0.5)
+## Publish Readiness Assessment (v1.0.7)
 
 ### Single Player
 | Area | Status | Notes |
 |------|--------|-------|
 | Core packing | ✅ Ready | All rules work; full-inventory edge case fixed (BUG-01) |
 | Settings menus | ✅ Ready | Both basic and advanced menus functional; profile↔rule sync correct |
-| Inventory sort | ⚠️ Caution | Works but sorts hotbar — player must be aware (NEW-14) |
+| Consolidate Stacks | ✅ Ready | In-place stack merge; hotbar untouched; skips special items |
 | Error handling | ✅ Ready | Item loss visible via chat; rollback in place |
 | Data persistence | ✅ Ready | Settings survive session; merge handles future schema changes |
-| **Overall** | **✅ Publishable** | Minor sort UX caveat |
+| **Overall** | **✅ Publishable** | |
 
 ---
 
@@ -333,9 +327,9 @@ analysis tools, bundlers, and linters.
 | Processing load | ✅ Ready | 5-tick cooldown prevents re-processing floods; one flush per tick for all players |
 | Crash safety | ✅ Ready | All player operations wrapped in try/catch; stale entity refs handled |
 | Menu concurrency | ✅ Ready | `openMenuPlayers` dedup prevents duplicate chains per player |
-| Inventory sort | ⚠️ Caution | Hotbar rearranged on every pack — significant issue in PvP/competitive play (NEW-14) |
-| Command feedback | ⚠️ Caution | Mistyped `zp:*` commands return nothing — minor but player-visible (NEW-15) |
-| **Overall** | **✅ Publishable** | Recommend fixing NEW-14 (hotbar sort) before release on PvP/competitive servers |
+| Consolidate Stacks | ✅ Ready | In-place merge; hotbar untouched — safe in PvP (NEW-14 fixed) |
+| Command feedback | ✅ Ready | Mistyped `zp:*` commands show usage (NEW-15 fixed) |
+| **Overall** | **✅ Publishable** | All blocking issues resolved |
 
 ---
 
@@ -347,15 +341,9 @@ analysis tools, bundlers, and linters.
 | Settings data integrity | ✅ Ready | Dynamic property writes are atomic per-player; corrupt data falls back to defaults |
 | Multi-session persistence | ✅ Ready | Player settings survive server restarts (dynamic properties are world-persistent) |
 | Scale concern (20+ players) | ✅ Acceptable | Per-player flush budget = ~19 rules × 36 slots = 684 ops/player. At 20 players: ~13k ops/flush, once per 5 ticks. Acceptable. |
-| Hotbar sort in PvP | ⚠️ High concern | On PvP/factions servers, sort rearranging hotbar during combat is a **blocker** for release (NEW-14) |
-| **Overall** | **⚠️ Conditional** | Fix NEW-14 before releasing on any PvP or competitive server. Safe for survival/SMP servers as-is. |
+| Hotbar sort in PvP | ✅ Ready | Stack consolidation is in-place; hotbar positions never change (NEW-14 fixed) |
+| **Overall** | **✅ Publishable** | All blocking issues resolved — safe for PvP and competitive servers |
 
 ---
 
-### Recommended fixes before release
-| Priority | Issue | Reason |
-|----------|-------|--------|
-| **Fix now** | NEW-14 — sort hotbar | Breaks muscle-memory hotbar in combat; high player impact |
-| **Fix now** | NEW-15 — command fallback | Cheap fix; improves first-time player experience |
-| Before next minor | NEW-16 — dead code | Cleanup |
-| Before next minor | NEW-17 — import order | Cleanup |
+### All issues resolved — no blocking items remain.

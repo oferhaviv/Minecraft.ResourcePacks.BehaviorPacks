@@ -212,7 +212,7 @@ function processPlayer(player) {
     // BUG-08: run sort only when packing actually happened this tick,
     // so manual inventory rearranging is never disrupted.
     if (didPack && playerSettings.features?.inventorySort) {
-      sortPlayerInventory(container);
+      consolidateInventory(container);
     }
   } catch (error) {
     // BUG-06: player entity may be invalid (disconnected between queue and flush).
@@ -383,26 +383,55 @@ function placeItemsDeterministically(container, itemId, totalAmount) {
   return remaining === 0;
 }
 
-// ─── Inventory sort ───────────────────────────────────────────────────────────
+// ─── Inventory consolidation ──────────────────────────────────────────────────
 
 /**
- * Sorts the player's inventory alphabetically by item typeId.
- * Preserves full ItemStack objects (enchantments, custom names, NBT).
- * Empty slots are pushed to the end.
+ * Merges partial stacks of the same item typeId in-place.
+ * Fills the slot with the highest existing count first, then overflows to the next.
+ * Skips named, enchanted, or lore-bearing items (non-plain stacks).
+ * Does NOT reorder slots — only writes slots whose amount changes.
  * Only called when packing actually happened this tick (BUG-08).
  */
-function sortPlayerInventory(container) {
-  const items = [];
+function consolidateInventory(container) {
+  // Group plain stackable items by typeId, recording their slot.
+  const groups = new Map(); // typeId → [{slot, amount}]
   for (let slot = 0; slot < container.size; slot++) {
     const item = container.getItem(slot);
-    if (item) items.push(item);
+    if (!item) continue;
+    const maxStack = getMaxStackSize(item.typeId);
+    if (maxStack <= 1) continue; // non-stackable
+    // Skip non-plain items.
+    if (item.nameTag !== undefined) continue;
+    try {
+      const lore = item.getLore?.();
+      if (lore && lore.length > 0) continue;
+      const enc = item.getComponent?.("minecraft:enchantable");
+      if (enc?.getEnchantments?.()?.length > 0) continue;
+    } catch { /* treat as plain */ }
+    if (!groups.has(item.typeId)) groups.set(item.typeId, []);
+    groups.get(item.typeId).push({ slot, amount: item.amount });
   }
-  if (items.length === 0) return;
 
-  items.sort((a, b) => a.typeId.localeCompare(b.typeId));
+  for (const [typeId, entries] of groups) {
+    if (entries.length <= 1) continue;
+    const maxStack = getMaxStackSize(typeId);
+    // Skip if every slot is already full — nothing to merge.
+    if (entries.every((e) => e.amount >= maxStack)) continue;
 
-  for (let slot = 0; slot < container.size; slot++) {
-    container.setItem(slot, slot < items.length ? items[slot] : undefined);
+    const total = entries.reduce((sum, e) => sum + e.amount, 0);
+    // Sort descending so the fullest slot absorbs first, preserving its position priority.
+    entries.sort((a, b) => b.amount - a.amount);
+
+    let remaining = total;
+    for (const { slot } of entries) {
+      if (remaining <= 0) {
+        container.setItem(slot, undefined);
+      } else {
+        const toPlace = Math.min(remaining, maxStack);
+        container.setItem(slot, new ItemStack(typeId, toPlace));
+        remaining -= toPlace;
+      }
+    }
   }
 }
 

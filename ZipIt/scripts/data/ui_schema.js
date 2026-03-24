@@ -62,9 +62,9 @@ export function buildUiSections(rules, settingsType = "basic") {
     sections.push({ type: "toggle",   label: "Miner",            path: "profiles.miner" });
     sections.push({ type: "toggle",   label: "Builder",          path: "profiles.builder" });
     sections.push({ type: "label",    label: "Features" });
-    sections.push({ type: "toggle",   label: "Inventory Sort",   path: "features.inventorySort" });
+    sections.push({ type: "toggle",   label: "Consolidate Stacks",   path: "features.inventorySort" });
   } else {
-    sections.push({ type: "toggle",   label: "Inventory Sort",   path: "features.inventorySort" });
+    sections.push({ type: "toggle",   label: "Consolidate Stacks",   path: "features.inventorySort" });
     if (minerOnly.length > 0) {
       sections.push({ type: "label", label: "Miner Items" });
       for (const r of minerOnly) sections.push(ruleSection(r));

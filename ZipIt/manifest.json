@@ -5,7 +5,7 @@
     "name": "ZipIt compact items and a sorter",
     "description": "Automatically compact eligible inventory items into storage blocks to save space.\nVanilla-friendly, configurable per player, and designed for survival play.\nInclude inventory items sorter.",
     "uuid": "8f2b6d2c-3e6a-4c7b-9c3a-1f5d8e2a7b11",
-    "version": [ 1,0,6 ],
+    "version": [ 1,0,7 ],
     "min_engine_version": [ 1,19,0 ]
   },
   "modules": [
