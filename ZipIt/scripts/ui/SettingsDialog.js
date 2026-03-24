@@ -107,6 +107,23 @@ export function applyFormValuesToSettings(values, currentSettings, rules, settin
     }
   }
 
+  // When the basic menu sets a profile to false, clear any explicit enabled:true overrides
+  // for rules whose profiles are now all off. Without this, packing continues for rules that
+  // were explicitly enabled via the advanced menu even after the controlling profile is turned off.
+  // (Only explicit ENABLEs are cleared — explicit disables are intentional and left alone.)
+  if (settingsType === "basic") {
+    for (const rule of rules) {
+      if (s.rules?.[rule.id]?.enabled !== true) continue; // no explicit enable to clear
+      const ruleProfiles = Array.isArray(rule.profile) ? rule.profile : [];
+      if (ruleProfiles.length === 0) continue; // unprofile'd rule — leave it alone
+      const allProfilesOff = !ruleProfiles.some((p) => s.profiles?.[p] === true);
+      if (allProfilesOff) {
+        delete s.rules[rule.id].enabled;
+        if (Object.keys(s.rules[rule.id]).length === 0) delete s.rules[rule.id];
+      }
+    }
+  }
+
   return s;
 }
 

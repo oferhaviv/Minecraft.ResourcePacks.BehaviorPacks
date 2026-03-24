@@ -215,9 +215,10 @@ function processPlayer(player) {
       if (tryExecutePackingRule(player, container, rule, resolvedRuleSettings)) didPack = true;
     }
 
-    // BUG-08: run sort only when packing actually happened this tick,
-    // so manual inventory rearranging is never disrupted.
-    if (didPack && playerSettings.features?.inventorySort) {
+    // Run consolidation whenever the feature is on — packing or not.
+    // Gating on didPack meant consolidation was skipped when profiles were off
+    // and the user only wanted stack merging, not packing.
+    if (playerSettings.features?.inventorySort) {
       consolidateInventory(container);
     }
   } catch (error) {
