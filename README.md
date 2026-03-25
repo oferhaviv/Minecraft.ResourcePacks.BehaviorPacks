@@ -105,6 +105,95 @@ Settings are configured per-player through the in-game dialog (`hg:settings`):
 
 ## ZipIt
 
-*Documentation coming soon.*
+> A vanilla-friendly inventory management add-on for Minecraft Bedrock Edition.
+
+Automatically compacts items into storage blocks as you pick them up, and merges partial stacks of the same item together — keeping your inventory clean without touching a single chest. All packing happens in the background; nothing is moved to a chest or dropped on the ground.
+
+### Features
+
+- **Auto-packing** — when you accumulate enough of a resource (e.g. 9 iron ingots), ZipIt converts them into a storage block (iron block) automatically
+- **Cascade packing** — conversions chain in a single tick: nuggets → ingots → blocks if quantities allow
+- **Consolidate Stacks** — merges partial stacks of the same item in-place without reordering slots; hotbar positions are always preserved
+- **Profile system** — enable the **Miner** profile (raw ores, processed ingots, gems), the **Builder** profile (building materials, nuggets, organic items), or both; flip one toggle to control a whole group of rules
+- **Per-rule overrides** — the advanced menu lets you fine-tune each packing rule independently of profiles
+- **Per-player settings** — every player configures their own preferences; no shared state
+- **Multiplayer safe** — settings are stored per-player via dynamic properties; fully isolated across concurrent players
+
+### Packing Rules
+
+Rules are ordered to support cascades (nuggets pack before ingots pack before blocks).
+
+| Rule | Source | Target | Ratio | Profile |
+|------|--------|--------|-------|---------|
+| `iron_nugget` | Iron Nugget | Iron Ingot | 9:1 | Builder |
+| `gold_nugget` | Gold Nugget | Gold Ingot | 9:1 | Builder |
+| `copper_nugget` | Copper Nugget | Copper Ingot | 9:1 | Builder |
+| `coal` | Coal | Coal Block | 9:1 | Miner |
+| `iron_ingot` | Iron Ingot | Iron Block | 9:1 | Miner & Builder |
+| `gold_ingot` | Gold Ingot | Gold Block | 9:1 | Miner & Builder |
+| `diamond` | Diamond | Diamond Block | 9:1 | Miner |
+| `emerald` | Emerald | Emerald Block | 9:1 | Miner |
+| `lapis_lazuli` | Lapis Lazuli | Lapis Block | 9:1 | Miner |
+| `copper_ingot` | Copper Ingot | Copper Block | 9:1 | Miner & Builder |
+| `netherite_ingot` | Netherite Ingot | Netherite Block | 9:1 | Miner & Builder |
+| `amethyst_shard` | Amethyst Shard | Amethyst Block | 4:1 | Miner & Builder |
+| `raw_iron` | Raw Iron | Raw Iron Block | 9:1 | Miner |
+| `raw_gold` | Raw Gold | Raw Gold Block | 9:1 | Miner |
+| `raw_copper` | Raw Copper | Raw Copper Block | 9:1 | Miner |
+| `redstone` | Redstone | Redstone Block | 9:1 | Miner & Builder |
+| `slime_ball` | Slime Ball | Slime Block | 9:1 | Miner & Builder |
+| `wheat` | Wheat | Hay Block | 9:1 | Builder |
+| `dried_kelp` | Dried Kelp | Dried Kelp Block | 9:1 | Builder |
+
+### Consolidate Stacks
+
+When enabled, ZipIt scans your inventory on every change and merges partial stacks of the same item type into the fullest slot first, respecting max stack sizes. Skips items with a custom name, lore, or enchantments so renamed tools and enchanted books are never touched.
+
+### Installation
+
+1. Download or clone the repository
+2. Copy the `ZipIt` folder into your world's `behavior_packs` directory
+3. Activate the pack in your world settings
+4. Each player enables it via `/scriptevent zp:settings`
+
+### Usage
+
+All commands are issued in-game via the `/scriptevent` command:
+
+| Command | Description |
+|---------|-------------|
+| `/scriptevent zp:settings` | Open the basic settings dialog (profiles, consolidation, debug level) |
+| `/scriptevent zp:advance` | Open the advanced settings dialog (per-rule toggles) |
+| `/scriptevent zp:active true\|false` | Enable or disable ZipIt for yourself |
+| `/scriptevent zp:restore` | Reset all your settings to defaults |
+| `/scriptevent zp:show` | Print your current settings and rule states to chat |
+
+### Settings
+
+**Basic menu** (`zp:settings`):
+
+| Setting | Default | Description |
+|---------|---------|-------------|
+| Enable ZipIt | On | Master on/off switch |
+| Miner | On | Enable all Miner-profile rules at once |
+| Builder | On | Enable all Builder-profile rules at once |
+| Consolidate Stacks | On | Merge partial stacks in-place on every inventory change |
+| Debug Level | None | `Basic` logs packing and consolidation events to the content log |
+
+**Advanced menu** (`zp:advance`):
+
+| Setting | Default | Description |
+|---------|---------|-------------|
+| Enable ZipIt | On | Master on/off switch |
+| Consolidate Stacks | On | Merge partial stacks in-place |
+| Per-rule toggles | Profile default | One toggle per packing rule, grouped by profile |
+| Debug Level | None | `Basic` logs packing events |
+
+Per-rule overrides in the advanced menu take priority over profiles. Clearing an override (setting it back to match the profile default) returns control to the profile toggle.
+
+### Requirements
+
+- Minecraft Bedrock Edition
+- Scripting API: `@minecraft/server` 2.5.0, `@minecraft/server-ui` 2.0.0
 
 ---

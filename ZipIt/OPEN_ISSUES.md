@@ -280,6 +280,90 @@ analysis tools, bundlers, and linters.
 
 ---
 
+## HIGH — Round 3 review (adopted from HarvestGuard)
+
+### NEW-18 · `processPlayer` missing `player?.isValid` guard before operation
+**File:** `scripts/main.js` → `processPlayer()`
+**Status:** Open
+
+`processPlayer()` checks `if (!player) return` but does not check `player?.isValid`. A player can become an invalid entity between being queued in `pendingPlayers` and the flush executing (e.g. disconnect during that tick gap). Accessing `player.getComponent(...)` on an invalid entity throws, which is currently caught by the outer try/catch but wastes a full exception path.
+
+**Fix:**
+```js
+function processPlayer(player) {
+  if (!player?.isValid) return;  // replaces bare !player check
+  ...
+}
+```
+
+---
+
+### NEW-19 · Scriptevent handler has no outer try/catch — one bad command can kill the subscriber
+**File:** `scripts/main.js` → scriptevent handler (the `world.afterEvents.scriptEventReceive.subscribe` block)
+**Status:** Open
+
+Each `zp:*` handler is called directly inside the subscriber. If any handler throws an uncaught exception the entire subscriber can be torn down by the runtime, permanently disabling all `zp:` commands for the session without any in-game feedback.
+
+HarvestGuard wraps its equivalent block in a top-level try/catch so a single bad command is logged and discarded without killing the subscriber.
+
+**Fix:** Wrap the body of the scriptevent subscribe callback in try/catch:
+```js
+world.afterEvents.scriptEventReceive.subscribe((ev) => {
+  if (!ev.id.startsWith("zp:")) return;
+  try {
+    // ... all existing dispatch logic ...
+  } catch (e) {
+    logZI(`Unhandled error in ${ev.id}: ${stringifyError(e)}`, "scriptEvent", true, true);
+  }
+});
+```
+
+---
+
+### NEW-20 · Command handlers called directly — no `system.runTimeout` guard on menu-triggering commands
+**File:** `scripts/main.js` → scriptevent handler
+**Status:** Open
+
+`zp:settings` and `zp:advance` call `showMenuWithRetry(source, ...)` synchronously inside the scriptevent handler. If the player disconnects in the 1–2 tick gap between the event firing and the menu being shown, the call operates on a stale entity.
+
+HarvestGuard wraps all menu-triggering commands in `system.runTimeout(() => { try { showMenu... } catch (e) { ... } }, 2)` to guard this window.
+
+**Fix:**
+```js
+if (ev.id === "zp:settings") {
+  system.runTimeout(() => {
+    try { showMenuWithRetry(source, RULES, "basic"); }
+    catch (e) { logZI(`zp:settings error: ${stringifyError(e)}`, "zp:settings", true, true); }
+  }, 2);
+  return;
+}
+// same pattern for zp:advance
+```
+
+---
+
+## MEDIUM — Round 3 review (adopted from HarvestGuard)
+
+### NEW-21 · Per-rule errors in packing loop can silently prevent consolidation from running
+**File:** `scripts/main.js` → `processPlayer()` → `for (const rule of RULES)` loop
+**Status:** Open
+
+If any rule throws an unexpected exception inside the `for (const rule of RULES)` loop, the outer try/catch in `processPlayer` catches it and returns early — `consolidateInventory()` is never reached. A single misbehaving rule silently suppresses consolidation for that player on that tick.
+
+**Fix:** Wrap each rule execution individually so one bad rule is isolated:
+```js
+for (const rule of RULES) {
+  try {
+    tryExecutePackingRule(player, container, playerSettings, rule);
+  } catch (e) {
+    logZI(`Rule ${rule.id ?? rule.sourceItem} threw: ${stringifyError(e)}`, "packRule", true, true);
+  }
+}
+// consolidateInventory() now always reached if player/container are valid
+```
+
+---
+
 ## Summary Table
 
 | ID | Severity | File | Description | Status |
@@ -301,6 +385,10 @@ analysis tools, bundlers, and linters.
 | NEW-15 | Medium | main.js | `zp:` fallback never matches mistyped commands — no player feedback | Fixed  v1.0.6| |
 | NEW-16 | Low | main.js | `findRuleByKey` dead code (was used by removed `zp:set`) | Fixed  v1.0.6| |
 | NEW-17 | Low | SettingsDialog.js | `import` statement placed after function declaration | Fixed  v1.0.6| |
+| NEW-18 | High | main.js | `processPlayer` missing `player?.isValid` guard — stale entity not caught early | Open |
+| NEW-19 | High | main.js | Scriptevent handler has no outer try/catch — one throw can kill all `zp:` commands | Open |
+| NEW-20 | Medium | main.js | Menu-triggering commands not wrapped in `system.runTimeout` — 2-tick disconnect window unguarded | Open |
+| NEW-21 | Medium | main.js | Per-rule throw in packing loop skips consolidation — rules not individually try/caught | Open |
 
 ---
 
@@ -346,4 +434,4 @@ analysis tools, bundlers, and linters.
 
 ---
 
-### All issues resolved — no blocking items remain.
+### Open items: NEW-18, NEW-19, NEW-20, NEW-21 (defensive hardening — adopted from HarvestGuard review).
