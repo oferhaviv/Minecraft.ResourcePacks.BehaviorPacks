@@ -4,11 +4,12 @@ A collection of Bedrock Edition behavior packs.
 
 ---
 
-## Harvest Guard
-
+## <img src="HarvestGuard/pack_icon.png" width="96" alt="HarvestGuard"/> Harvest Guard 
 > A vanilla-friendly farming safety add-on for Minecraft Bedrock Edition.
 
 Prevents players from accidentally destroying crops before they are ready to harvest, and protects the base blocks of vertical plants. Activates only when the player is holding a configured tool (hoe or axe), so normal gameplay is unaffected.
+
+
 
 ### Features
 
