@@ -4,19 +4,22 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Repository Overview
 
-This is a Minecraft Bedrock Edition behavior packs repository containing two add-ons:
+This is a Minecraft Bedrock Edition behavior packs repository containing three add-ons:
 - **HarvestGuard** — prevents accidental crop destruction before ripeness
 - **ZipIt** — automatically compacts inventory items into storage blocks and consolidates partial stacks
+- **Deep Dark Survival Kit** — survival utilities for exploring the Deep Dark biome (early development)
 
-Both packs are written in JavaScript using the `@minecraft/server` 2.5.0 and `@minecraft/server-ui` 2.0.0 APIs (format_version: 2 manifests).
+All packs are written in JavaScript using the `@minecraft/server` 2.5.0 API (format_version: 2 manifests). HarvestGuard and ZipIt also use `@minecraft/server-ui` 2.0.0.
 
 ## Status
 - HarvestGuard: COMPLETE - ready for BLOCKLAB submission - will be validated on multi-player server
 - ZipIt: IN PROGRESS - active bug fixing; currently at v1.1.0 — see `ZipIt/OPEN_ISSUES.md` for full history
+- Deep Dark Survival Kit: EARLY DEV - v1.0.0 - chest beam feature working
 
 ## Shared Code
-- `shared/` folder is shared between both addons (linked via junction)
+- `shared/` folder is shared between HarvestGuard and ZipIt (linked via junction)
 - Changes there affect both packs
+- Deep Dark Survival Kit does not use shared modules yet
 
 ## Current Task
 ZipIt bug fixing is ongoing. All known critical/high bugs are resolved as of v1.1.0.
@@ -36,7 +39,7 @@ Creates directory junctions: `HarvestGuard/scripts/shared` and `ZipIt/scripts/sh
 ```bat
 deploy.bat
 ```
-Mirrors both packs to `%USERPROFILE%\AppData\Roaming\Minecraft Bedrock\Users\Shared\games\com.mojang\development_behavior_packs` using robocopy. Handles junctions by excluding them (`/XJ`) and copying the real `shared/` folder into each pack separately.
+Mirrors all three packs to `%USERPROFILE%\AppData\Roaming\Minecraft Bedrock\Users\Shared\games\com.mojang\development_behavior_packs` using robocopy. Handles junctions by excluding them (`/XJ`) and copying the real `shared/` folder into each pack separately. Deep Dark Survival Kit deploys as `DeepDarkSurvivalKit`.
 
 ### Sync back from Minecraft (after in-game edits)
 ```bat
@@ -81,6 +84,7 @@ Versions follow `major.minor.patch`. **Always bump the patch digit** by default 
 
 - HarvestGuard: `HarvestGuard/manifest.json` — version in the `header` section
 - ZipIt: `ZipIt/manifest.json` — current version **1.1.0**
+- Deep Dark Survival Kit: `Deep Dark Survival Kit/manifest.json` — current version **1.0.0**
 
 ---
 
@@ -165,6 +169,53 @@ Calling `isValid()` throws `TypeError: not a function`. Always use `container.is
 
 ### Cascade packing
 Rules run sequentially in one `processPlayer` call. nuggets→ingots→blocks can chain in a single tick (intentional). Rule order in `packing_rules.js` matters for cascades.
+
+---
+
+## Deep Dark Survival Kit Architecture
+
+Minimal structure — no shared modules, no settings system yet. Grows as features are added.
+
+```
+Deep Dark Survival Kit/
+├── manifest.json
+└── scripts/
+    ├── main.js          # Entry point — all logic lives here for now
+    └── data/            # Reserved for future config/constants
+```
+
+### Chest Beam Feature (`main.js`)
+
+Spawns a vertical column of particles above every nearby chest every tick, creating a visible beacon-like beam in dark areas.
+
+**Key constants (top of `main.js`):**
+| Constant | Value | Effect |
+|---|---|---|
+| `SCAN_INTERVAL_TICKS` | `1` | Fires every tick — keeps beam solid |
+| `SCAN_RADIUS` | `32` | Blocks around player to search for chests |
+| `BEAM_PARTICLE` | `minecraft:basic_portal_particle` | Purple portal particles — best visibility in dark |
+| `BEAM_HEIGHT` | `20` | How many blocks tall the beam rises |
+| `BEAM_STEP` | `0.5` | Gap between particles in the column |
+
+**Chest types detected:** `minecraft:chest`, `minecraft:trapped_chest`, `minecraft:ender_chest`
+
+**Particle candidates tested:**
+| Particle | Result |
+|---|---|
+| `minecraft:villager_happy` | Green sparkles — too subtle |
+| `minecraft:totem_particle` | Not visible |
+| `minecraft:soul_fire_flame` | Not visible |
+| `minecraft:sculk_sensor_redstone_particle` | Not visible |
+| `minecraft:end_rod` | Not visible |
+| `minecraft:basic_flame_particle` | Orange flame — visible but not ideal |
+| `minecraft:basic_portal_particle` | **Purple swirl — confirmed best for dark areas** |
+
+**Implementation pattern:**
+- `system.runInterval` fires every tick
+- Per tick: for each online player, call `dimension.getBlocks(BlockVolume, { includeTypes }, true)`
+- Iterate `getBlockLocationIterator()` and loop `dy` from `0` to `BEAM_HEIGHT` in `BEAM_STEP` increments
+- Each step: `dimension.spawnParticle(BEAM_PARTICLE, { x: cx, y: baseY + dy, z: cz })`
+- Bedrock particle render distance is ~16–20 blocks — engine limitation, cannot be overridden via scripting
 
 ---
 

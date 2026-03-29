@@ -18,6 +18,7 @@ SET "DEV=%USERPROFILE%\AppData\Roaming\Minecraft Bedrock\Users\Shared\games\com.
 REM ── destination folder names ────────────────────────────────
 SET "DEST_HG=%DEV%\HarvestGuard"
 SET "DEST_ZI=%DEV%\ZipIt"
+SET "DEST_DD=%DEV%\DeepDarkSurvivalKit"
 REM ────────────────────────────────────────────────────────────
 
 echo.
@@ -37,7 +38,12 @@ robocopy "%REPO%shared" "%DEST_ZI%\scripts\shared" /MIR /NP /NDL
 if %ERRORLEVEL% geq 8 ( echo [ERROR] ZipIt shared copy failed && goto :error )
 
 echo.
-echo Done. Both packs deployed.
+echo Deploying Deep Dark Survival Kit...
+robocopy "%REPO%Deep Dark Survival Kit" "%DEST_DD%" /MIR /XJ /NP /NDL
+if %ERRORLEVEL% geq 8 ( echo [ERROR] Deep Dark Survival Kit copy failed && goto :error )
+
+echo.
+echo Done. All packs deployed.
 
 goto :eof
 

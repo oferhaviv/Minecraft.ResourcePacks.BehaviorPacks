@@ -1,0 +1,31 @@
+{
+  "format_version": 2,
+  "capabilities": ["script_eval"],
+  "header": {
+    "name": "Deep Dark Survival Kit",
+    "description": "Survival utilities for exploring the Deep Dark biome.",
+    "uuid": "c3a7f2d1-5e8b-4a09-b6f3-2d91e7c04a55",
+    "version": [1, 0, 0],
+    "min_engine_version": [1, 19, 0]
+  },
+  "modules": [
+    {
+      "type": "data",
+      "uuid": "8d2e6b94-3c17-4f5a-a028-e71b93d64c30",
+      "version": [1, 0, 0]
+    },
+    {
+      "type": "script",
+      "language": "javascript",
+      "entry": "scripts/main.js",
+      "uuid": "f4b09e73-2a61-4d8c-9517-6c3f0d82e1b9",
+      "version": [1, 0, 0]
+    }
+  ],
+  "dependencies": [
+    {
+      "module_name": "@minecraft/server",
+      "version": "2.5.0"
+    }
+  ]
+}
