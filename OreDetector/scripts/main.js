@@ -160,9 +160,9 @@ function updateHud(player) {
     return;
   }
 
-  const playerYaw = player.getRotation().y;
+  const view = player.getViewDirection(); // live forward vector, no yaw convention issues
   const lines = found.map(({ ore, dist, dx, dz }) => {
-    const arrow = getCompassArrow(dx, dz, playerYaw);
+    const arrow = getCompassArrow(dx, dz, view.x, view.z);
     return `${ore.color}◆ ${ore.label} §f${arrow} ${Math.round(dist)} blocks`;
   });
 
@@ -236,19 +236,23 @@ function scanOres(player) {
  * Returns a single arrow relative to the player's current facing direction.
  *   ↑ = straight ahead, ↓ = behind, → = turn right, ← = turn left, etc.
  *
- * Minecraft yaw convention: 0 = South (+Z), 90 = West (−X), −90 = East (+X), 180 = North (−Z).
- * atan2(−dx, dz) converts a world-space XZ offset into that same yaw space so we
- * can subtract the player's yaw to get a purely relative angle.
+ * Both ore direction and view direction are converted to angles using the same
+ * atan2(−x, z) formula so any coordinate-convention differences cancel out.
+ * Negating X makes clockwise rotation produce increasing angles, matching
+ * Minecraft's layout (East/+X is to your LEFT when facing South/+Z).
  *
- * @param {number} dx          ore.x − player.x
- * @param {number} dz          ore.z − player.z
- * @param {number} playerYaw   player.getRotation().y
+ * @param {number} dx   ore.x − player.x
+ * @param {number} dz   ore.z − player.z
+ * @param {number} vx   player.getViewDirection().x
+ * @param {number} vz   player.getViewDirection().z
  */
-function getCompassArrow(dx, dz, playerYaw) {
-  const oreYaw   = Math.atan2(-dx, dz) * (180 / Math.PI); // world yaw toward ore
-  let relAngle   = oreYaw - playerYaw;                     // angle relative to facing
-  relAngle       = ((relAngle % 360) + 360) % 360;         // normalise to [0, 360)
-  const index    = Math.round(relAngle / 45) % 8;          // 8 sectors of 45°
+function getCompassArrow(dx, dz, vx, vz) {
+  const oreAngle  = Math.atan2(-dx, dz);   // angle toward ore
+  const viewAngle = Math.atan2(-vx, vz);   // angle of player's forward vector
+  let relAngle    = oreAngle - viewAngle;   // signed relative angle (radians)
+  // Normalise to [0, 2π)
+  relAngle = ((relAngle % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI);
+  const index = Math.round(relAngle / (Math.PI / 4)) % 8;  // 8 sectors of 45°
   return COMPASS_ARROWS[index];
 }
 
