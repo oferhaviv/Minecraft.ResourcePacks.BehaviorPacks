@@ -198,3 +198,84 @@ Per-rule overrides in the advanced menu take priority over profiles. Clearing an
 - Scripting API: `@minecraft/server` 2.5.0, `@minecraft/server-ui` 2.0.0
 
 ---
+
+## OreDetector
+
+> A live ore-finder HUD for Minecraft Bedrock Edition.
+
+While holding a pickaxe, scans the area around you for nearby ores and shows a live action-bar display with a colored indicator, compass arrow, and distance for each ore type found. Put the pickaxe away and the HUD disappears cleanly.
+
+### Features
+
+- **Live HUD** — updates every tick; shows ore type, relative compass direction, and distance in blocks
+- **9 ore types** — Diamond, Emerald, Ancient Debris, Gold, Iron, Copper, Redstone, Lapis, Coal (each individually toggleable)
+- **Deepslate & raw block variants** — automatically detects deepslate ores and raw ore blocks (Raw Iron Block, Raw Gold Block, Raw Copper Block)
+- **Closest-first sorting** — nearest ore is always shown at the top of the HUD
+- **Pickaxe tier selector** — choose which pickaxe tier activates the HUD (All, Wooden & Stone, Iron/Gold/Copper, Diamond & Netherite)
+- **Smart rescanning** — scan frequency adapts to distance; closer ores trigger more frequent updates, distant ores poll less often
+- **Per-player settings** — every player configures their own ore toggles and pickaxe tier; no shared state
+- **Multiplayer safe** — settings stored per-player via dynamic properties; fully isolated across concurrent players
+
+### Ore Types
+
+| Ore | Color | Block IDs detected |
+|-----|-------|--------------------|
+| Diamond | Aqua | `diamond_ore`, `deepslate_diamond_ore` |
+| Emerald | Green | `emerald_ore`, `deepslate_emerald_ore` |
+| Ancient Debris | Dark Red | `ancient_debris` |
+| Gold | Gold | `gold_ore`, `deepslate_gold_ore`, `raw_gold_block` |
+| Iron | Gray | `iron_ore`, `deepslate_iron_ore`, `raw_iron_block` |
+| Copper | Yellow | `copper_ore`, `deepslate_copper_ore`, `raw_copper_block` |
+| Redstone | Red | `redstone_ore`, `deepslate_redstone_ore` (lit variants included) |
+| Lapis | Blue | `lapis_ore`, `deepslate_lapis_ore` |
+| Coal | Dark Gray | `coal_ore`, `deepslate_coal_ore` |
+
+### Pickaxe Tiers
+
+| Index | Group | Pickaxes |
+|-------|-------|----------|
+| 0 | All Pickaxes (default) | Wooden, Stone, Iron, Golden, Diamond, Netherite |
+| 1 | Wooden & Stone only | Wooden, Stone |
+| 2 | Iron, Gold & Copper only | Iron, Golden, Copper |
+| 3 | Diamond & Netherite only | Diamond, Netherite |
+
+### Installation
+
+1. Download or clone the repository
+2. Copy the `OreDetector` folder into your world's `behavior_packs` directory
+3. Activate the pack in your world settings
+4. Each player enables it via `/scriptevent od:active true`
+
+### Usage
+
+All commands are issued in-game via the `/scriptevent` command:
+
+| Command | Description |
+|---------|-------------|
+| `/scriptevent od:settings` | Open the settings dialog (ore toggles, pickaxe tier, debug level) |
+| `/scriptevent od:active true\|false` | Enable or disable OreDetector for yourself |
+| `/scriptevent od:restore` | Reset all your settings to defaults |
+
+### Settings
+
+| Setting | Default | Description |
+|---------|---------|-------------|
+| Enable OreDetector | Off | Master on/off switch |
+| Pickaxe Tier | All Pickaxes | Which pickaxe tier activates the HUD |
+| Diamond | On | Show Diamond ore |
+| Emerald | On | Show Emerald ore |
+| Ancient Debris | On | Show Ancient Debris |
+| Gold | On | Show Gold ore |
+| Iron | On | Show Iron ore |
+| Copper | On | Show Copper ore |
+| Redstone | On | Show Redstone ore |
+| Lapis | On | Show Lapis ore |
+| Coal | On | Show Coal ore |
+| Debug Level | None | `Basic` logs scan events to the content log |
+
+### Requirements
+
+- Minecraft Bedrock Edition
+- Scripting API: `@minecraft/server` 2.5.0, `@minecraft/server-ui` 2.0.0
+
+---
