@@ -2,7 +2,7 @@
  * Ore Location Detector — ore definitions.
  *
  * Each entry defines:
- *   blockIds  — all block type IDs that count as this ore (normal + deepslate variants).
+ *   blockIds  — all block type IDs that count as this ore (normal, deepslate, raw block variants).
  *   label     — display name shown in the HUD.
  *   color     — §color code applied to the label.
  *
@@ -25,14 +25,19 @@ export const ORE_LIST = [
     color: "§4",
   },
   {
-    blockIds: ["minecraft:gold_ore", "minecraft:deepslate_gold_ore"],
+    blockIds: ["minecraft:gold_ore", "minecraft:deepslate_gold_ore", "minecraft:raw_gold_block"],
     label: "Gold",
     color: "§6",
   },
   {
-    blockIds: ["minecraft:iron_ore", "minecraft:deepslate_iron_ore"],
+    blockIds: ["minecraft:iron_ore", "minecraft:deepslate_iron_ore", "minecraft:raw_iron_block"],
     label: "Iron",
     color: "§7",
+  },
+  {
+    blockIds: ["minecraft:copper_ore", "minecraft:deepslate_copper_ore", "minecraft:raw_copper_block"],
+    label: "Copper",
+    color: "§e",
   },
   {
     blockIds: [
