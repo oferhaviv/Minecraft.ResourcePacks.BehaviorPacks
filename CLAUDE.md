@@ -4,17 +4,19 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Repository Overview
 
-This is a Minecraft Bedrock Edition behavior packs repository containing three add-ons:
+This is a Minecraft Bedrock Edition behavior packs repository containing four add-ons:
 - **HarvestGuard** — prevents accidental crop destruction before ripeness
 - **ZipIt** — automatically compacts inventory items into storage blocks and consolidates partial stacks
 - **Deep Dark Survival Kit** — survival utilities for exploring the Deep Dark biome (early development)
+- **OreDetector** — live action-bar HUD showing direction and distance to nearby ores while holding a pickaxe
 
 All packs are written in JavaScript using the `@minecraft/server` 2.5.0 API (format_version: 2 manifests). HarvestGuard and ZipIt also use `@minecraft/server-ui` 2.0.0.
 
 ## Status
 - HarvestGuard: COMPLETE - ready for BLOCKLAB submission - will be validated on multi-player server
 - ZipIt: IN PROGRESS - active bug fixing; currently at v1.1.0 — see `ZipIt/OPEN_ISSUES.md` for full history
-- Deep Dark Survival Kit: EARLY DEV - v1.0.0 - chest beam feature working
+- Deep Dark Survival Kit: EARLY DEV - v1.0.3 - particle beam above hostile mobs
+- OreDetector: EARLY DEV - v1.0.0 - HUD working, no settings UI yet
 
 ## Shared Code
 - `shared/` folder is shared between HarvestGuard and ZipIt (linked via junction)
@@ -92,6 +94,7 @@ Versions follow `major.minor.patch`. **Always bump the patch digit** by default 
 
 **HarvestGuard:** `hg:settings`, `hg:active`, `hg:restore`, `hg:show`, `hg:usage` (or any `hg:` prefix shows usage)
 **ZipIt:** `zp:settings`, `zp:advance`, `zp:active`, `zp:restore`, `zp:show`, `zp:usage` (or any `zp:` prefix shows usage)
+**OreDetector:** `od:settings` (stub), `od:active`, `od:restore`, `od:usage` (or any `od:` prefix shows usage)
 
 ---
 

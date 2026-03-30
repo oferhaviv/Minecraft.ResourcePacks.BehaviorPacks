@@ -22,9 +22,18 @@ if exist "ZipIt\scripts\shared" (
   echo [done] ZipIt\scripts\shared
 )
 
+if exist "OreDetector\scripts\shared" (
+  echo [skip] OreDetector\scripts\shared already exists
+) else (
+  mklink /J "OreDetector\scripts\shared" "%~dp0shared"
+  echo [done] OreDetector\scripts\shared
+)
+
 echo.
 echo Done. Shared modules are now available as:
 echo   HarvestGuard\scripts\shared\logger.js
 echo   HarvestGuard\scripts\shared\playerSettingsStore.js
 echo   ZipIt\scripts\shared\logger.js
 echo   ZipIt\scripts\shared\playerSettingsStore.js
+echo   OreDetector\scripts\shared\logger.js
+echo   OreDetector\scripts\shared\playerSettingsStore.js

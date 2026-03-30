@@ -19,6 +19,7 @@ REM ── destination folder names ──────────────�
 SET "DEST_HG=%DEV%\HarvestGuard"
 SET "DEST_ZI=%DEV%\ZipIt"
 SET "DEST_DD=%DEV%\DeepDarkSurvivalKit"
+SET "DEST_OD=%DEV%\OreDetector"
 REM ────────────────────────────────────────────────────────────
 
 echo.
@@ -41,6 +42,14 @@ echo.
 echo Deploying Deep Dark Survival Kit...
 robocopy "%REPO%Deep Dark Survival Kit" "%DEST_DD%" /MIR /XJ /NP /NDL
 if %ERRORLEVEL% geq 8 ( echo [ERROR] Deep Dark Survival Kit copy failed && goto :error )
+
+echo.
+echo Deploying Ore Location Detector...
+robocopy "%REPO%OreDetector" "%DEST_OD%" /MIR /XJ /NP /NDL
+if %ERRORLEVEL% geq 8 ( echo [ERROR] OreDetector copy failed && goto :error )
+
+robocopy "%REPO%shared" "%DEST_OD%\scripts\shared" /MIR /NP /NDL
+if %ERRORLEVEL% geq 8 ( echo [ERROR] OreDetector shared copy failed && goto :error )
 
 echo.
 echo Done. All packs deployed.

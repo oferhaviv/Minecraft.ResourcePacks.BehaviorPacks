@@ -1,0 +1,31 @@
+{
+  "format_version": 2,
+  "capabilities": ["script_eval"],
+  "header": {
+    "name": "Ore Location Detector",
+    "description": "Detects nearby ores while holding a pickaxe and shows a live action-bar HUD with direction and distance to each ore type.",
+    "uuid": "d7e2a4f8-1b3c-4d6e-9f0a-2b4c6d8e0f12",
+    "version": [1, 0, 0],
+    "min_engine_version": [1, 19, 0]
+  },
+  "modules": [
+    {
+      "type": "data",
+      "uuid": "e8f3b5a9-2c4d-4e7f-a0b1-3c5d7e9f1a23",
+      "version": [1, 0, 0]
+    },
+    {
+      "type": "script",
+      "language": "javascript",
+      "entry": "scripts/main.js",
+      "uuid": "f9a4c6b0-3d5e-4f8a-b1c2-4d6e8f0a2b34",
+      "version": [1, 0, 0]
+    }
+  ],
+  "dependencies": [
+    {
+      "module_name": "@minecraft/server",
+      "version": "2.5.0"
+    }
+  ]
+}
