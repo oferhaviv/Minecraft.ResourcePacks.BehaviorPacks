@@ -14,7 +14,12 @@ const SCAN_INTERVAL_TICKS = 1;
 const SCAN_RADIUS = 32;
 
 // Particle spawned above each hostile mob.
-const MOB_PARTICLE = "minecraft:basic_portal_particle";
+// Candidates (swap to test in-game):
+//   "minecraft:wax_particle"          — white sparkles (current)
+//   "minecraft:end_rod"               — white star sparkles
+//   "minecraft:snowball_poof_particle" — white poof burst
+//   "minecraft:basic_portal_particle" — purple swirl (previous)
+const MOB_PARTICLE = "minecraft:wax_particle";
 
 // How many blocks tall the indicator beam rises above the mob.
 const BEAM_HEIGHT = 10;
