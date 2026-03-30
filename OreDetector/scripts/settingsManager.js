@@ -20,6 +20,9 @@ export function mergeSettings(saved) {
 
   if (typeof saved.enabled === "boolean") out.enabled = saved.enabled;
 
+  if (typeof saved.pickaxeGroup === "number" && Number.isFinite(saved.pickaxeGroup))
+    out.pickaxeGroup = Math.max(0, Math.floor(saved.pickaxeGroup));
+
   if (saved.ores && typeof saved.ores === "object") {
     for (const key of Object.keys(out.ores)) {
       if (typeof saved.ores[key] === "boolean") out.ores[key] = saved.ores[key];

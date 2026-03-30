@@ -7,8 +7,8 @@
  */
 
 import { world, system, EquipmentSlot, BlockVolume } from "@minecraft/server";
-import { PICKAXE_TYPES }  from "./data/pickaxe_types.js";
-import { ORE_LIST }       from "./data/ore_list.js";
+import { ORE_LIST }        from "./data/ore_list.js";
+import { PICKAXE_GROUPS }  from "./data/pickaxe_groups.js";
 import { logOD, getSettings, saveSettings, clearPlayerCache, cloneDefaultSettings } from "./settingsManager.js";
 import { showMenuWithRetry, clearPlayerMenuState } from "./ui/SettingsDialog.js";
 import registerValidation from "./devValidation.js"; // DEV ONLY – remove before publishing
@@ -38,14 +38,32 @@ const COMPASS_ARROWS = ["↑", "↗", "→", "↘", "↓", "↙", "←", "↖"];
 const activeHudPlayers = new Set();
 
 // ─── Scan cache (position-driven) ────────────────────────────────────────────
-// The block scan is expensive. We only re-scan when the player steps into a
-// new block. Arrow rendering stays live every tick (getViewDirection is cheap).
+// The block scan is expensive. We only re-scan when the player has moved further
+// than the current rescan threshold. The threshold shrinks when ores are close
+// (need fresh data more often) and grows when ores are far (less precision needed).
+// Arrow rendering stays live every tick (getRotation is cheap).
 
-/** playerId → last scanned block position {x, y, z} (integer coords) */
-const lastScanBlockPos = new Map();
+/** playerId → exact {x, y, z} position where the last scan was taken */
+const lastScanPosition     = new Map();
+
+/** playerId → rescan distance threshold computed after the last scan */
+const lastRescanThreshold  = new Map();
 
 /** playerId → last scan results (the `found` array from scanOres) */
-const lastScanResults  = new Map();
+const lastScanResults      = new Map();
+
+/**
+ * Returns how far the player must move before triggering a new scan,
+ * based on the distance to the nearest ore found in the previous scan.
+ * Close ores need more frequent updates; distant ores tolerate coarser polling.
+ *
+ * @param {number} nearestOreDist  Distance to nearest ore, or Infinity if none found.
+ */
+function getRescanDistance(nearestOreDist) {
+  if (nearestOreDist <= 10) return 0.5;
+  if (nearestOreDist <= 20) return 1.5;
+  return 3;
+}
 
 // ─── Usage message ────────────────────────────────────────────────────────────
 
@@ -75,7 +93,8 @@ if (world.afterEvents?.playerLeave?.subscribe) {
     clearPlayerCache(ev.playerId);
     clearPlayerMenuState(ev.playerId);
     activeHudPlayers.delete(ev.playerId);
-    lastScanBlockPos.delete(ev.playerId);
+    lastScanPosition.delete(ev.playerId);
+    lastRescanThreshold.delete(ev.playerId);
     lastScanResults.delete(ev.playerId);
     logOD(`cache cleared for ${ev.playerId}`, "playerLeave");
   });
@@ -94,7 +113,8 @@ if (system.afterEvents?.scriptEventReceive?.subscribe) {
       if (ev.id === "od:settings") {
         showMenuWithRetry(source, () => {
           // Invalidate scan cache so new ore-visibility settings apply immediately.
-          lastScanBlockPos.delete(source.id);
+          lastScanPosition.delete(source.id);
+          lastRescanThreshold.delete(source.id);
           lastScanResults.delete(source.id);
         });
         return;
@@ -158,9 +178,11 @@ function handleOdRestore(player) {
 function updateHud(player) {
   const settings = getSettings(player);
 
-  const equippable = player.getComponent("minecraft:equippable");
-  const heldItem   = equippable?.getEquipment(EquipmentSlot.Mainhand);
-  const holdingPickaxe = heldItem != null && PICKAXE_TYPES.includes(heldItem.typeId);
+  const equippable    = player.getComponent("minecraft:equippable");
+  const heldItem      = equippable?.getEquipment(EquipmentSlot.Mainhand);
+  const groupIdx      = settings.pickaxeGroup ?? 0;
+  const activeTypes   = PICKAXE_GROUPS[groupIdx]?.types ?? PICKAXE_GROUPS[0].types;
+  const holdingPickaxe = heldItem != null && activeTypes.includes(heldItem.typeId);
 
   if (!holdingPickaxe || !settings.enabled) {
     if (activeHudPlayers.has(player.id)) {
@@ -168,21 +190,27 @@ function updateHud(player) {
       activeHudPlayers.delete(player.id);
     }
     // Clear scan cache so next pickup triggers a fresh scan immediately.
-    lastScanBlockPos.delete(player.id);
+    lastScanPosition.delete(player.id);
+    lastRescanThreshold.delete(player.id);
     lastScanResults.delete(player.id);
     return;
   }
 
-  // Re-scan only when the player steps into a new block.
-  // Arrow recalculation (getViewDirection) still runs every tick — it's cheap.
-  const loc = player.location;
-  const bx = Math.floor(loc.x), by = Math.floor(loc.y), bz = Math.floor(loc.z);
-  const lastPos = lastScanBlockPos.get(player.id);
+  // Re-scan only when the player has moved beyond the current rescan threshold.
+  // The threshold is recalculated after every scan based on the nearest ore found.
+  // Arrow recalculation (getRotation) still runs every tick — it's cheap.
+  const loc       = player.location;
+  const lastPos   = lastScanPosition.get(player.id);
+  const threshold = lastRescanThreshold.get(player.id) ?? 3; // default: no prior scan
   let found;
-  if (!lastPos || lastPos.x !== bx || lastPos.y !== by || lastPos.z !== bz) {
+
+  const dx2 = lastPos ? (loc.x - lastPos.x) ** 2 + (loc.y - lastPos.y) ** 2 + (loc.z - lastPos.z) ** 2 : Infinity;
+  if (dx2 >= threshold * threshold) {
     found = scanOres(player, settings);
     lastScanResults.set(player.id, found);
-    lastScanBlockPos.set(player.id, { x: bx, y: by, z: bz });
+    lastScanPosition.set(player.id, { x: loc.x, y: loc.y, z: loc.z });
+    const nearestDist = found.length > 0 ? Math.min(...found.map(f => f.dist)) : Infinity;
+    lastRescanThreshold.set(player.id, getRescanDistance(nearestDist));
   } else {
     found = lastScanResults.get(player.id) ?? [];
   }

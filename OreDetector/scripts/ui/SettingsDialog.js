@@ -53,7 +53,10 @@ export function buildMenu(settings) {
       form.toggle(section.label, { defaultValue: !!getNested(settings, section.path) });
     } else if (section.type === "dropdown") {
       const val = getNested(settings, section.path);
-      const idx = val === "basic" ? 1 : 0;
+      // debug.level is stored as "none"/"basic"; all other dropdowns store the index.
+      const idx = section.path === "debug.level"
+        ? (val === "basic" ? 1 : 0)
+        : (typeof val === "number" ? Math.max(0, Math.floor(val)) : 0);
       form.dropdown(section.label, section.options, { defaultValueIndex: idx });
     }
   }
@@ -78,9 +81,14 @@ export function applyFormValuesToSettings(values, currentSettings) {
     if (section.type === "toggle") {
       setNested(s, section.path, !!raw);
     } else if (section.type === "dropdown") {
-      // debug.level: index 0 → "none", index 1 → "basic"
       const n = Number(raw ?? 0);
-      setNested(s, section.path, (Number.isFinite(n) && Math.floor(n) === 1) ? "basic" : "none");
+      if (section.path === "debug.level") {
+        // Stored as string "none"/"basic", not an index.
+        setNested(s, section.path, (Number.isFinite(n) && Math.floor(n) === 1) ? "basic" : "none");
+      } else {
+        // All other dropdowns store the selected index as a number.
+        setNested(s, section.path, Number.isFinite(n) ? Math.floor(n) : 0);
+      }
     }
   }
 

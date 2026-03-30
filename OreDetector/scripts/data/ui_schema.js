@@ -8,10 +8,13 @@
  *   { type: "dropdown", label, path, options }  options → string[] shown in the dropdown
  */
 
-import { ORE_LIST } from "./ore_list.js";
+import { ORE_LIST }       from "./ore_list.js";
+import { PICKAXE_GROUPS } from "./pickaxe_groups.js";
 
 export const UI_SCHEMA = [
-  { type: "toggle", label: "Enable OreDetector", path: "enabled" },
+  { type: "toggle",   label: "Enable OreDetector", path: "enabled" },
+  { type: "dropdown", label: "Pickaxe Tier", path: "pickaxeGroup",
+    options: PICKAXE_GROUPS.map(g => g.label) },
 
   { type: "label", label: "§7─── Ore Types ───" },
   ...ORE_LIST.map(ore => ({
