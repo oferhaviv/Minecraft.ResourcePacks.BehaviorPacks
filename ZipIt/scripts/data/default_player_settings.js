@@ -1,5 +1,5 @@
 export const DEFAULT_PLAYER_SETTINGS = {
-  enabled: true,
+  enabled: false,
   profiles: {
     miner: true,
     builder: true,

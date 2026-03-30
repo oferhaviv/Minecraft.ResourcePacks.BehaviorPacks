@@ -15,17 +15,22 @@ const SCAN_RADIUS = 32;
 
 // Particle spawned above each hostile mob.
 // Candidates (swap to test in-game):
-//   "minecraft:wax_particle"          — white sparkles (current)
-//   "minecraft:end_rod"               — white star sparkles
-//   "minecraft:snowball_poof_particle" — white poof burst
+//   "minecraft:conduit_particle"      — blue-white energy glow, emissive in dark (current)
+//   "minecraft:soul_fire_flame"       — blue-white soul flame, emissive in dark
+//   "minecraft:glowstone_dust_particle" — yellow-white glow, emissive
+//   "minecraft:basic_flame_particle"  — orange flame, confirmed visible in dark
+//   "minecraft:totem_particle"        — very heavy, greenish, hard to see in dark
+//   "minecraft:end_rod"               — not visible in testing
+//   "minecraft:instant_spell_particle" — bright white flash
+//   "minecraft:wax_particle"          — white but not glowing
 //   "minecraft:basic_portal_particle" — purple swirl (previous)
-const MOB_PARTICLE = "minecraft:wax_particle";
+const MOB_PARTICLE = "minecraft:conduit_particle";
 
 // How many blocks tall the indicator beam rises above the mob.
-const BEAM_HEIGHT = 10;
+const BEAM_HEIGHT = 30;
 
 // Gap between each particle in the column (blocks). Smaller = denser.
-const BEAM_STEP = 0.5;
+const BEAM_STEP = 0.2;
 
 // Entity types to mark.
 const HOSTILE_TYPES = [

@@ -3,7 +3,7 @@
  */
 export const DEFAULT_PLAYER_SETTINGS = {
   /** Master on/off toggle. */
-  enabled: true,
+  enabled: false,
   /** Index into PICKAXE_GROUPS — which pickaxe tier activates the HUD. 0 = All. */
   pickaxeGroup: 0,
   /** Per-ore visibility toggles. Keys match ORE_LIST[n].key. */

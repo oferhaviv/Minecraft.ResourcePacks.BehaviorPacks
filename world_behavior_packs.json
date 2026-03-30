@@ -1,11 +1,26 @@
 [
-	
-	{
-		"pack_id" : "9b1e6a7d-2a4f-4d91-8c9e-3f6b1a2c7d11",
-		"version" : [ 1, 0, 12 ]
-	},
-	{
-		"pack_id" : "8f2b6d2c-3e6a-4c7b-9c3a-1f5d8e2a7b11",
-		"version" : [ 1, 1, 0 ]
-	}
+  {
+    "pack_id": "9b1e6a7d-2a4f-4d91-8c9e-3f6b1a2c7d11",
+    "version": [
+      1,
+      0,
+      12
+    ]
+  },
+  {
+    "pack_id": "8f2b6d2c-3e6a-4c7b-9c3a-1f5d8e2a7b11",
+    "version": [
+      1,
+      1,
+      0
+    ]
+  },
+  {
+    "pack_id": "d7e2a4f8-1b3c-4d6e-9f0a-2b4c6d8e0f12",
+    "version": [
+      1,
+      0,
+      7
+    ]
+  }
 ]
