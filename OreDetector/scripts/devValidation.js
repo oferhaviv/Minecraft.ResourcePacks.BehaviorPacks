@@ -47,9 +47,17 @@ function buildValidationEnv(player) {
   const pz  = Math.floor(loc.z);
 
   // ── Step 1: clear a tall-enough air column so ores are visible ──────────────
-  const clearFrom = { x: px - FLATTEN_RADIUS, y: py,     z: pz - FLATTEN_RADIUS };
-  const clearTo   = { x: px + FLATTEN_RADIUS, y: py + 6, z: pz + FLATTEN_RADIUS };
-  dim.fillBlocks(new BlockVolume(clearFrom, clearTo), "minecraft:air");
+  // fillBlocks has a 32,768-block limit. 81×81×7 = 45,927 exceeds it, so fill
+  // one Y layer at a time (81×81 = 6,561 each — well within limits).
+  for (let dy = 0; dy <= 6; dy++) {
+    dim.fillBlocks(
+      new BlockVolume(
+        { x: px - FLATTEN_RADIUS, y: py + dy, z: pz - FLATTEN_RADIUS },
+        { x: px + FLATTEN_RADIUS, y: py + dy, z: pz + FLATTEN_RADIUS },
+      ),
+      "minecraft:air",
+    );
+  }
 
   // ── Step 2: solid stone floor one block below player feet ───────────────────
   const floorFrom = { x: px - FLATTEN_RADIUS, y: py - 1, z: pz - FLATTEN_RADIUS };
