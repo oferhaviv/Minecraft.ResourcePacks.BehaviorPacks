@@ -4,7 +4,7 @@
  * Trigger: /scriptevent od:validation   (requires Debug Level = Basic)
  *
  * Creates a flat testing area around the player:
- *   1. Flattens an 80×80 area at the player's Y level (replaced with air).
+ *   1. Flattens a 65×65 area at the player's Y level (replaced with air).
  *   2. Lays a stone floor one block below the player.
  *   3. Places one ore block per ORE_LIST entry at varying distances/directions.
  *   4. Gives the player one of every pickaxe in PICKAXE_GROUPS[0].types.
@@ -17,8 +17,11 @@ import { ORE_LIST }      from "./data/ore_list.js";
 import { PICKAXE_GROUPS } from "./data/pickaxe_groups.js";
 import { logOD, getSettings } from "./settingsManager.js";
 
-const TAG            = "od:validation";
-const FLATTEN_RADIUS = 40; // 80×80 = 40 blocks each side from centre
+const TAG = "od:validation";
+
+// 32 blocks each side → 65×65 area, spans a 5×5 chunk grid (25 chunks).
+// Must be ≥ max(DISTANCES) so all ore blocks land inside the cleared area.
+const FLATTEN_RADIUS = 32;
 
 // Distances (blocks) assigned to each ore slot, cycling if ORE_LIST grows.
 const DISTANCES = [5, 15, 25, 30, 5, 15, 25, 30, 5];
@@ -46,23 +49,40 @@ function buildValidationEnv(player) {
   const py  = Math.floor(loc.y);
   const pz  = Math.floor(loc.z);
 
-  // ── Step 1: clear a tall-enough air column so ores are visible ──────────────
-  // fillBlocks has a 32,768-block limit. 81×81×7 = 45,927 exceeds it, so fill
-  // one Y layer at a time (81×81 = 6,561 each — well within limits).
+  // ── Step 1: clear air layer by layer ────────────────────────────────────────
+  // fillBlocks limit = 32,768 blocks. 65×65×7 = 29,575 would fit in one call,
+  // but a 65×65 area can still touch unloaded edge chunks. Filling one Y layer
+  // at a time (65×65 = 4,225 each) lets us skip any layer that hits an unloaded
+  // chunk without aborting the entire setup.
+  let fillWarnings = 0;
   for (let dy = 0; dy <= 6; dy++) {
-    dim.fillBlocks(
-      new BlockVolume(
-        { x: px - FLATTEN_RADIUS, y: py + dy, z: pz - FLATTEN_RADIUS },
-        { x: px + FLATTEN_RADIUS, y: py + dy, z: pz + FLATTEN_RADIUS },
-      ),
-      "minecraft:air",
-    );
+    try {
+      dim.fillBlocks(
+        new BlockVolume(
+          { x: px - FLATTEN_RADIUS, y: py + dy, z: pz - FLATTEN_RADIUS },
+          { x: px + FLATTEN_RADIUS, y: py + dy, z: pz + FLATTEN_RADIUS },
+        ),
+        "minecraft:air",
+      );
+    } catch (e) {
+      fillWarnings++;
+      logOD(`air fill dy=${dy} skipped: ${e}`, TAG, true);
+    }
   }
 
   // ── Step 2: solid stone floor one block below player feet ───────────────────
-  const floorFrom = { x: px - FLATTEN_RADIUS, y: py - 1, z: pz - FLATTEN_RADIUS };
-  const floorTo   = { x: px + FLATTEN_RADIUS, y: py - 1, z: pz + FLATTEN_RADIUS };
-  dim.fillBlocks(new BlockVolume(floorFrom, floorTo), "minecraft:stone");
+  try {
+    dim.fillBlocks(
+      new BlockVolume(
+        { x: px - FLATTEN_RADIUS, y: py - 1, z: pz - FLATTEN_RADIUS },
+        { x: px + FLATTEN_RADIUS, y: py - 1, z: pz + FLATTEN_RADIUS },
+      ),
+      "minecraft:stone",
+    );
+  } catch (e) {
+    fillWarnings++;
+    logOD(`floor fill skipped: ${e}`, TAG, true);
+  }
 
   // ── Step 3: place one ore block per ORE_LIST entry ─────────────────────────
   // Ores float at py+1 (eye level), spread evenly around the player in a circle.
@@ -72,10 +92,15 @@ function buildValidationEnv(player) {
     const dist  = DISTANCES[i % DISTANCES.length];
     const bx    = Math.round(px + Math.sin(angle) * dist);
     const bz    = Math.round(pz + Math.cos(angle) * dist);
-    dim.setBlockType({ x: bx, y: oreY, z: bz }, ore.blockIds[0]);
+    try {
+      dim.setBlockType({ x: bx, y: oreY, z: bz }, ore.blockIds[0]);
+    } catch (e) {
+      logOD(`place ${ore.key} failed: ${e}`, TAG, true);
+    }
   });
 
   // ── Step 4: give pickaxes + confirm (wait a tick for block writes to settle) ─
+  const warnings = fillWarnings;
   system.runTimeout(() => {
     const container = player.getComponent("minecraft:inventory")?.container;
     if (container) {
@@ -89,13 +114,17 @@ function buildValidationEnv(player) {
     }
 
     const oreNames = ORE_LIST.map(o => `${o.color}${o.label}§r`).join("§f, ");
-    player.sendMessage([
+    const lines = [
       `§a[OreDetector DEV] Validation environment ready!`,
       `§7Ores placed: §f${oreNames}`,
       `§7Distances: §f${[...new Set(DISTANCES.slice(0, ORE_LIST.length))].join(", ")} blocks`,
       `§7Hold any pickaxe to test the HUD.`,
-    ].join("\n"));
+    ];
+    if (warnings > 0) {
+      lines.push(`§e§o(${warnings} fill layer(s) skipped — unloaded chunks at area edge)`);
+    }
+    player.sendMessage(lines.join("\n"));
 
-    logOD(`validation env built at ${px},${py},${pz} for ${player.name}`, TAG);
+    logOD(`validation env built at ${px},${py},${pz} for ${player.name} (fillWarnings=${warnings})`, TAG);
   }, 2);
 }
