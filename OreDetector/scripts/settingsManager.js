@@ -20,6 +20,12 @@ export function mergeSettings(saved) {
 
   if (typeof saved.enabled === "boolean") out.enabled = saved.enabled;
 
+  if (saved.ores && typeof saved.ores === "object") {
+    for (const key of Object.keys(out.ores)) {
+      if (typeof saved.ores[key] === "boolean") out.ores[key] = saved.ores[key];
+    }
+  }
+
   if (saved.debug && typeof saved.debug === "object") {
     if (saved.debug.level === "none" || saved.debug.level === "basic")
       out.debug.level = saved.debug.level;

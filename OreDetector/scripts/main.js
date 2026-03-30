@@ -10,6 +10,7 @@ import { world, system, EquipmentSlot, BlockVolume } from "@minecraft/server";
 import { PICKAXE_TYPES }  from "./data/pickaxe_types.js";
 import { ORE_LIST }       from "./data/ore_list.js";
 import { logOD, getSettings, saveSettings, clearPlayerCache, cloneDefaultSettings } from "./settingsManager.js";
+import { showMenuWithRetry, clearPlayerMenuState } from "./ui/SettingsDialog.js";
 import registerValidation from "./devValidation.js"; // DEV ONLY – remove before publishing
 
 // ─── Key constants ────────────────────────────────────────────────────────────
@@ -50,7 +51,7 @@ const lastScanResults  = new Map();
 
 const USAGE_MESSAGE = [
   "§b[OreDetector] Commands:",
-  "  §f/scriptevent od:settings§7  — settings (stub, UI coming soon)",
+  "  §f/scriptevent od:settings§7  — open settings menu",
   "  §f/scriptevent od:active <true|false>§7  — enable or disable",
   "  §f/scriptevent od:restore§7  — reset to defaults",
 ].join("\n");
@@ -72,6 +73,7 @@ system.runInterval(() => {
 if (world.afterEvents?.playerLeave?.subscribe) {
   world.afterEvents.playerLeave.subscribe((ev) => {
     clearPlayerCache(ev.playerId);
+    clearPlayerMenuState(ev.playerId);
     activeHudPlayers.delete(ev.playerId);
     lastScanBlockPos.delete(ev.playerId);
     lastScanResults.delete(ev.playerId);
@@ -90,7 +92,11 @@ if (system.afterEvents?.scriptEventReceive?.subscribe) {
       if (ev.id === "od:active")     { handleOdActive(source, args); return; }
       if (ev.id === "od:restore")    { handleOdRestore(source);      return; }
       if (ev.id === "od:settings") {
-        source.sendMessage("§b[OreDetector] Settings UI coming soon.\nUse §f/scriptevent od:active true/false§b to toggle.");
+        showMenuWithRetry(source, () => {
+          // Invalidate scan cache so new ore-visibility settings apply immediately.
+          lastScanBlockPos.delete(source.id);
+          lastScanResults.delete(source.id);
+        });
         return;
       }
       if (ev.id === "od:validation") { /* DEV ONLY – remove before publishing */
@@ -174,7 +180,7 @@ function updateHud(player) {
   const lastPos = lastScanBlockPos.get(player.id);
   let found;
   if (!lastPos || lastPos.x !== bx || lastPos.y !== by || lastPos.z !== bz) {
-    found = scanOres(player);
+    found = scanOres(player, settings);
     lastScanResults.set(player.id, found);
     lastScanBlockPos.set(player.id, { x: bx, y: by, z: bz });
   } else {
@@ -202,15 +208,23 @@ function updateHud(player) {
 // ─── Ore scanner ──────────────────────────────────────────────────────────────
 
 /**
- * Scans for the nearest ore of each type within a sphere of SCAN_RADIUS.
+ * Scans for the nearest ore of each enabled type within a sphere of SCAN_RADIUS.
  *
  * @param {import("@minecraft/server").Player} player
+ * @param {object} settings  Current player settings (used to filter disabled ore types).
  * @returns {{ ore: object, dist: number, dx: number, dz: number }[]}
  *          One entry per found ore type, in ORE_LIST display order.
  */
-function scanOres(player) {
+function scanOres(player, settings) {
   const loc = player.location;
   const dim = player.dimension;
+
+  // Only scan for ore types the player has enabled.
+  const enabledOreIds = ORE_LIST
+    .filter(ore => settings.ores?.[ore.key] !== false)
+    .flatMap(ore => ore.blockIds);
+
+  if (enabledOreIds.length === 0) return [];
 
   const from = {
     x: Math.floor(loc.x) - SCAN_RADIUS,
@@ -223,7 +237,7 @@ function scanOres(player) {
     z: Math.floor(loc.z) + SCAN_RADIUS,
   };
 
-  const blockResults = dim.getBlocks(new BlockVolume(from, to), { includeTypes: ALL_ORE_IDS }, true);
+  const blockResults = dim.getBlocks(new BlockVolume(from, to), { includeTypes: enabledOreIds }, true);
 
   // nearest[i] = { dist, dx, dz } for ORE_LIST index i, or null if not found yet.
   const nearest = new Array(ORE_LIST.length).fill(null);
