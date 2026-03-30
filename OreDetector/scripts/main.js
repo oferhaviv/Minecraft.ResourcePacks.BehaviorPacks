@@ -187,11 +187,13 @@ function updateHud(player) {
     return;
   }
 
-  const view = player.getViewDirection(); // live forward vector, no yaw convention issues
-  const lines = found.map(({ ore, dist, dx, dz }) => {
-    const arrow = getCompassArrow(dx, dz, view.x, view.z);
-    return `${ore.color}◆ ${ore.label} §f${arrow} ${Math.round(dist)} blocks`;
-  });
+  const playerYaw = player.getRotation().y;
+  const lines = [...found]
+    .sort((a, b) => a.dist - b.dist)
+    .map(({ ore, dist, dx, dz }) => {
+      const arrow = getCompassArrow(dx, dz, playerYaw);
+      return `${ore.color}◆ ${ore.label} §f${arrow} ${Math.round(dist)} blocks`;
+    });
 
   player.onScreenDisplay.setActionBar(lines.join("\n"));
   activeHudPlayers.add(player.id);
@@ -263,23 +265,25 @@ function scanOres(player) {
  * Returns a single arrow relative to the player's current facing direction.
  *   ↑ = straight ahead, ↓ = behind, → = turn right, ← = turn left, etc.
  *
- * Both ore direction and view direction are converted to angles using the same
- * atan2(−x, z) formula so any coordinate-convention differences cancel out.
- * Negating X makes clockwise rotation produce increasing angles, matching
- * Minecraft's layout (East/+X is to your LEFT when facing South/+Z).
+ * Bedrock yaw: 0° = South, −90° = East, 90° = West, 180°/−180° = North.
+ * angleToOre uses 0° = North (atan2(dx, −dz)), so we convert playerYaw to
+ * the same system by adding 180° before subtracting.
  *
- * @param {number} dx   ore.x − player.x
- * @param {number} dz   ore.z − player.z
- * @param {number} vx   player.getViewDirection().x
- * @param {number} vz   player.getViewDirection().z
+ * @param {number} dx         ore.x − player.x
+ * @param {number} dz         ore.z − player.z
+ * @param {number} playerYaw  player.getRotation().y
  */
-function getCompassArrow(dx, dz, vx, vz) {
-  const oreAngle  = Math.atan2(-dx, dz);   // angle toward ore
-  const viewAngle = Math.atan2(-vx, vz);   // angle of player's forward vector
-  let relAngle    = oreAngle - viewAngle;   // signed relative angle (radians)
-  // Normalise to [0, 2π)
-  relAngle = ((relAngle % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI);
-  const index = Math.round(relAngle / (Math.PI / 4)) % 8;  // 8 sectors of 45°
+function getCompassArrow(dx, dz, playerYaw) {
+  // Angle to ore in world space — 0° = North (−Z), clockwise positive.
+  const angleToOre  = Math.atan2(dx, -dz) * (180 / Math.PI);
+  // Convert Bedrock yaw (0° = South) to same North-origin system.
+  const facingAngle = playerYaw + 180;
+  // Relative angle: positive = clockwise = right of player.
+  let relative = angleToOre - facingAngle;
+  // Normalise to [0, 360).
+  relative = ((relative % 360) + 360) % 360;
+  // 8 sectors of 45°; Math.round centres each arrow on its sector.
+  const index = Math.round(relative / 45) % 8;
   return COMPASS_ARROWS[index];
 }
 
