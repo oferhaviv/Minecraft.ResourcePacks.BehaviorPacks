@@ -16,7 +16,7 @@ All packs are written in JavaScript using the `@minecraft/server` 2.5.0 API (for
 - HarvestGuard: COMPLETE - ready for BLOCKLAB submission - will be validated on multi-player server
 - ZipIt: IN PROGRESS - active bug fixing; currently at v1.1.0 — see `ZipIt/OPEN_ISSUES.md` for full history
 - Deep Dark Survival Kit: EARLY DEV - v1.0.3 - particle beam above hostile mobs
-- OreDetector: EARLY DEV - v1.0.0 - HUD working, no settings UI yet
+- OreDetector: IN PROGRESS - v1.0.7 - HUD + settings UI working; known issues tracked in `OreDetector/OPEN_ISSUES.md`
 
 ## Shared Code
 - `shared/` folder is shared between HarvestGuard and ZipIt (linked via junction)
@@ -49,6 +49,12 @@ upload_conent.bat
 ```
 Copies from Minecraft dev folder back to repo, then auto-commits and pushes with a timestamp.
 
+### Update world_behavior_packs.json for server deploy
+```bat
+deploy_to_server.bat
+```
+Reads the `header.uuid` and `header.version` from each pack's `manifest.json` and rewrites `world_behavior_packs.json` in the repo root. Run this after any version bump before pushing to a server. SFTP upload is stubbed with a TODO comment at the bottom of the script.
+
 ---
 
 ## Architecture
@@ -74,9 +80,10 @@ The `shared/` folder is symlinked into each pack's `scripts/shared/` via junctio
 ```
 
 ### devValidation.js
-Both packs contain a `devValidation.js` file that builds an in-game test environment. This is **DEV-ONLY** — it must be removed before publishing.
+All three main packs contain a `devValidation.js` file that builds an in-game test environment. This is **DEV-ONLY** — it must be removed before publishing.
 - ZipIt: triggered via `/scriptevent zp:validation` — **requires Debug Level set to Basic** (enforced in code; shows error message otherwise)
 - HarvestGuard: triggered via `/scriptevent hg:validation` after setting debug level to Basic
+- OreDetector: triggered via `/scriptevent od:validation` — **requires Debug Level set to Basic**; flattens an 80×80 area, places one of every ore type at varying distances, gives all pickaxes
 
 ---
 
@@ -86,7 +93,8 @@ Versions follow `major.minor.patch`. **Always bump the patch digit** by default 
 
 - HarvestGuard: `HarvestGuard/manifest.json` — version in the `header` section
 - ZipIt: `ZipIt/manifest.json` — current version **1.1.0**
-- Deep Dark Survival Kit: `Deep Dark Survival Kit/manifest.json` — current version **1.0.0**
+- Deep Dark Survival Kit: `Deep Dark Survival Kit/manifest.json` — current version **1.0.3**
+- OreDetector: `OreDetector/manifest.json` — current version **1.0.7**
 
 ---
 
@@ -94,7 +102,7 @@ Versions follow `major.minor.patch`. **Always bump the patch digit** by default 
 
 **HarvestGuard:** `hg:settings`, `hg:active`, `hg:restore`, `hg:show`, `hg:usage` (or any `hg:` prefix shows usage)
 **ZipIt:** `zp:settings`, `zp:advance`, `zp:active`, `zp:restore`, `zp:show`, `zp:usage` (or any `zp:` prefix shows usage)
-**OreDetector:** `od:settings` (stub), `od:active`, `od:restore`, `od:usage` (or any `od:` prefix shows usage)
+**OreDetector:** `od:settings`, `od:active`, `od:restore`, `od:validation` (DEV, requires Debug=Basic), `od:usage` (or any `od:` prefix shows usage)
 
 ---
 
@@ -219,6 +227,79 @@ Spawns a vertical column of particles above every nearby chest every tick, creat
 - Iterate `getBlockLocationIterator()` and loop `dy` from `0` to `BEAM_HEIGHT` in `BEAM_STEP` increments
 - Each step: `dimension.spawnParticle(BEAM_PARTICLE, { x: cx, y: baseY + dy, z: cz })`
 - Bedrock particle render distance is ~16–20 blocks — engine limitation, cannot be overridden via scripting
+
+---
+
+## OreDetector Architecture
+
+```
+OreDetector/
+├── manifest.json
+└── scripts/
+    ├── main.js                        # Entry point, HUD loop, event subscriptions
+    ├── settingsManager.js             # Per-player settings, commands, UI wiring
+    ├── devValidation.js               # DEV-ONLY: remove before publishing
+    ├── shared/                        # Junction → root shared/
+    ├── data/
+    │   ├── ore_list.js                # All ore definitions (blockIds, label, color)
+    │   ├── pickaxe_groups.js          # Pickaxe tier groups for HUD activation
+    │   ├── default_player_settings.js # Default settings object
+    │   └── ui_schema.js               # Data-driven form schema
+    └── ui/
+        └── SettingsDialog.js          # ModalFormData build/apply/retry logic
+```
+
+### Key constants (`main.js`)
+| Constant | Value | Effect |
+|---|---|---|
+| `SCAN_INTERVAL_TICKS` | `1` | HUD refreshes every tick (arrow recalculation is cheap) |
+| `SCAN_RADIUS` | `32` | Sphere radius (blocks) scanned for ores |
+
+### Ore definitions (`data/ore_list.js`)
+9 ore types: Diamond, Emerald, Ancient Debris, Gold, Iron, Copper, Redstone, Lapis, Coal.
+Each entry has `key` (settings storage), `blockIds[]` (normal + deepslate + raw block variants where applicable; lit variants for redstone), `label`, and `color` (§ color code).
+Order in `ORE_LIST` controls display order before distance sort is applied.
+
+### Pickaxe tier groups (`data/pickaxe_groups.js`)
+4 groups selectable in settings:
+- **All Pickaxes** (default) — wooden through netherite
+- **Wooden & Stone only**
+- **Iron, Gold & Copper only**
+- **Diamond & Netherite only**
+
+`settings.pickaxeGroup` stores the selected index (0–3). `main.js` resolves the active type list via `PICKAXE_GROUPS[groupIdx].types`.
+
+### Scan cache and dynamic rescan threshold
+Block scanning (`dim.getBlocks`) is expensive. Results are cached per player and only refreshed when the player moves beyond a dynamic threshold:
+
+```
+function getRescanDistance(nearestOreDist):
+  ≤ 10 blocks → rescan every 0.5 blocks moved
+  ≤ 20 blocks → rescan every 1.5 blocks
+  > 20 blocks → rescan every 3 blocks
+  no ores found → use maximum (3)
+```
+
+Three Maps drive this: `lastScanPosition`, `lastRescanThreshold`, `lastScanResults`. Arrow direction recalculation (`getRotation`) still runs every tick — it is cheap.
+Cache is cleared on pickaxe put-down, player leave, and after the settings menu saves.
+
+### HUD display (`setActionBar`)
+- One line per found ore type, sorted closest-first.
+- Format: `§color◆ Label §farrow distance blocks`
+- "No ores within 32 blocks." shown when scan finds nothing.
+- HUD is cleared (single space) when the player puts away the pickaxe or disables the pack.
+
+### Direction calculation (yaw-based)
+Minecraft Bedrock yaw: `0° = South`, `±180° = North`. The arrow math converts both angles to a North-origin system before computing the relative offset:
+
+```javascript
+angleToOre  = atan2(dx, -dz) * 180/π   // 0° = North, clockwise
+facingAngle = playerYaw + 180            // convert South-origin → North-origin
+relative    = ((angleToOre - facingAngle) % 360 + 360) % 360
+index       = Math.round(relative / 45) % 8   // → COMPASS_ARROWS[index]
+```
+
+`COMPASS_ARROWS = ["↑","↗","→","↘","↓","↙","←","↖"]` — index 0 is straight ahead.
 
 ---
 
