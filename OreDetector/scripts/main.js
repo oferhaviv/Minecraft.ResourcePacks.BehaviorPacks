@@ -36,6 +36,16 @@ const COMPASS_ARROWS = ["↑", "↗", "→", "↘", "↓", "↙", "←", "↖"];
 /** Player IDs currently showing the HUD — used to avoid clearing unnecessarily. */
 const activeHudPlayers = new Set();
 
+// ─── Scan cache (position-driven) ────────────────────────────────────────────
+// The block scan is expensive. We only re-scan when the player steps into a
+// new block. Arrow rendering stays live every tick (getViewDirection is cheap).
+
+/** playerId → last scanned block position {x, y, z} (integer coords) */
+const lastScanBlockPos = new Map();
+
+/** playerId → last scan results (the `found` array from scanOres) */
+const lastScanResults  = new Map();
+
 // ─── Usage message ────────────────────────────────────────────────────────────
 
 const USAGE_MESSAGE = [
@@ -63,6 +73,8 @@ if (world.afterEvents?.playerLeave?.subscribe) {
   world.afterEvents.playerLeave.subscribe((ev) => {
     clearPlayerCache(ev.playerId);
     activeHudPlayers.delete(ev.playerId);
+    lastScanBlockPos.delete(ev.playerId);
+    lastScanResults.delete(ev.playerId);
     logOD(`cache cleared for ${ev.playerId}`, "playerLeave");
   });
 }
@@ -149,10 +161,25 @@ function updateHud(player) {
       player.onScreenDisplay.setActionBar(" ");
       activeHudPlayers.delete(player.id);
     }
+    // Clear scan cache so next pickup triggers a fresh scan immediately.
+    lastScanBlockPos.delete(player.id);
+    lastScanResults.delete(player.id);
     return;
   }
 
-  const found = scanOres(player);
+  // Re-scan only when the player steps into a new block.
+  // Arrow recalculation (getViewDirection) still runs every tick — it's cheap.
+  const loc = player.location;
+  const bx = Math.floor(loc.x), by = Math.floor(loc.y), bz = Math.floor(loc.z);
+  const lastPos = lastScanBlockPos.get(player.id);
+  let found;
+  if (!lastPos || lastPos.x !== bx || lastPos.y !== by || lastPos.z !== bz) {
+    found = scanOres(player);
+    lastScanResults.set(player.id, found);
+    lastScanBlockPos.set(player.id, { x: bx, y: by, z: bz });
+  } else {
+    found = lastScanResults.get(player.id) ?? [];
+  }
 
   if (found.length === 0) {
     player.onScreenDisplay.setActionBar("§7No ores within " + SCAN_RADIUS + " blocks.");
