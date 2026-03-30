@@ -160,8 +160,9 @@ function updateHud(player) {
     return;
   }
 
+  const playerYaw = player.getRotation().y;
   const lines = found.map(({ ore, dist, dx, dz }) => {
-    const arrow = getCompassArrow(dx, dz);
+    const arrow = getCompassArrow(dx, dz, playerYaw);
     return `${ore.color}◆ ${ore.label} §f${arrow} ${Math.round(dist)} blocks`;
   });
 
@@ -232,17 +233,22 @@ function scanOres(player) {
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 /**
- * Returns a single arrow character representing the horizontal compass direction
- * from the player to the target (dx = target.x - player.x, dz = target.z - player.z).
+ * Returns a single arrow relative to the player's current facing direction.
+ *   ↑ = straight ahead, ↓ = behind, → = turn right, ← = turn left, etc.
  *
- * Minecraft axes: +X = East, +Z = South, -Z = North.
- * atan2(dx, -dz) gives angle from North, clockwise in degrees.
+ * Minecraft yaw convention: 0 = South (+Z), 90 = West (−X), −90 = East (+X), 180 = North (−Z).
+ * atan2(−dx, dz) converts a world-space XZ offset into that same yaw space so we
+ * can subtract the player's yaw to get a purely relative angle.
+ *
+ * @param {number} dx          ore.x − player.x
+ * @param {number} dz          ore.z − player.z
+ * @param {number} playerYaw   player.getRotation().y
  */
-function getCompassArrow(dx, dz) {
-  let angle = Math.atan2(dx, -dz) * (180 / Math.PI);
-  if (angle < 0) angle += 360;
-  // Each of the 8 sectors is 45°; offset by 22.5° so North straddles 0.
-  const index = Math.round(angle / 45) % 8;
+function getCompassArrow(dx, dz, playerYaw) {
+  const oreYaw   = Math.atan2(-dx, dz) * (180 / Math.PI); // world yaw toward ore
+  let relAngle   = oreYaw - playerYaw;                     // angle relative to facing
+  relAngle       = ((relAngle % 360) + 360) % 360;         // normalise to [0, 360)
+  const index    = Math.round(relAngle / 45) % 8;          // 8 sectors of 45°
   return COMPASS_ARROWS[index];
 }
 
