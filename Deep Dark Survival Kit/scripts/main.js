@@ -31,6 +31,7 @@ const BEAM_STEP = 0.5;
 const HOSTILE_TYPES = [
   "minecraft:skeleton",
   "minecraft:zombie",
+  "minecraft:warden",
 ];
 
 system.runInterval(() => {
