@@ -1,38 +1,37 @@
 /**
  * Deep Dark Survival Kit — main entry point.
  *
- * Feature: continuous particle beam above nearby chests.
- * Runs every tick so the column stays solid and visible in dark areas.
+ * Feature: continuous particle indicator above nearby hostile mobs.
+ * Runs every tick so the marker stays visible in dark areas.
  */
 
-import { world, system, BlockVolume } from "@minecraft/server";
+import { world, system } from "@minecraft/server";
 
-// Run every tick for a continuous, solid-looking beam.
+// Run every tick for a continuous, solid-looking indicator.
 const SCAN_INTERVAL_TICKS = 1;
 
-// Horizontal/vertical radius around each player to scan for chests.
+// Horizontal radius around each player to scan for mobs.
 const SCAN_RADIUS = 32;
 
-// Particle used for each step of the beam column.
-// minecraft:basic_flame_particle is bright orange — visible in dark areas.
-const BEAM_PARTICLE = "minecraft:basic_portal_particle";
+// Particle spawned above each hostile mob.
+const MOB_PARTICLE = "minecraft:basic_portal_particle";
 
-// How many blocks tall the beam rises above the chest top.
-const BEAM_HEIGHT = 20;
+// How many blocks tall the indicator beam rises above the mob.
+const BEAM_HEIGHT = 10;
 
 // Gap between each particle in the column (blocks). Smaller = denser.
 const BEAM_STEP = 0.5;
 
-const CHEST_TYPES = [
-  "minecraft:chest",
-  "minecraft:trapped_chest",
-  "minecraft:ender_chest",
+// Entity types to mark.
+const HOSTILE_TYPES = [
+  "minecraft:skeleton",
+  "minecraft:zombie",
 ];
 
 system.runInterval(() => {
   for (const player of world.getAllPlayers()) {
     try {
-      drawBeamsAboveChests(player);
+      drawIndicatorsAboveHostiles(player);
     } catch (e) {
       console.warn(`[DDSK] error: ${e}`);
     }
@@ -42,30 +41,23 @@ system.runInterval(() => {
 /**
  * @param {import("@minecraft/server").Player} player
  */
-function drawBeamsAboveChests(player) {
-  const loc = player.location;
+function drawIndicatorsAboveHostiles(player) {
   const dim = player.dimension;
 
-  const from = {
-    x: Math.floor(loc.x) - SCAN_RADIUS,
-    y: Math.max(-64,  Math.floor(loc.y) - SCAN_RADIUS),
-    z: Math.floor(loc.z) - SCAN_RADIUS,
-  };
-  const to = {
-    x: Math.floor(loc.x) + SCAN_RADIUS,
-    y: Math.min(320,  Math.floor(loc.y) + SCAN_RADIUS),
-    z: Math.floor(loc.z) + SCAN_RADIUS,
-  };
+  // getEntities doesn't support multiple types in one call, so query each type.
+  const allHostiles = HOSTILE_TYPES.flatMap((type) =>
+    dim.getEntities({ location: player.location, maxDistance: SCAN_RADIUS, type })
+  );
 
-  const results = dim.getBlocks(new BlockVolume(from, to), { includeTypes: CHEST_TYPES }, true);
+  for (const entity of allHostiles) {
+    if (!entity.isValid) continue;
 
-  for (const blockLoc of results.getBlockLocationIterator()) {
-    const cx = blockLoc.x + 0.5;
-    const cz = blockLoc.z + 0.5;
-    const baseY = blockLoc.y + 1; // just above chest top
+    const loc = entity.location;
+    // Start beam at entity's eye level (approx +1.6 for zombie/skeleton).
+    const baseY = loc.y + 1.6;
 
     for (let dy = 0; dy <= BEAM_HEIGHT; dy += BEAM_STEP) {
-      dim.spawnParticle(BEAM_PARTICLE, { x: cx, y: baseY + dy, z: cz });
+      dim.spawnParticle(MOB_PARTICLE, { x: loc.x, y: baseY + dy, z: loc.z });
     }
   }
 }
