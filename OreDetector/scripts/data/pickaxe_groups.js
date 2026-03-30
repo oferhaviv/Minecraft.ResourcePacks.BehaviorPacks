@@ -11,6 +11,7 @@ export const PICKAXE_GROUPS = [
     types: [
       "minecraft:wooden_pickaxe",
       "minecraft:stone_pickaxe",
+      "minecraft:copper_pickaxe",
       "minecraft:iron_pickaxe",
       "minecraft:golden_pickaxe",
       "minecraft:diamond_pickaxe",
@@ -18,18 +19,18 @@ export const PICKAXE_GROUPS = [
     ],
   },
   {
-    label: "Wooden & Stone only",
+    label: "Wooden, Stone & Copper only",
     types: [
       "minecraft:wooden_pickaxe",
       "minecraft:stone_pickaxe",
+      "minecraft:copper_pickaxe",
     ],
   },
   {
-    label: "Iron, Gold & Copper only",
+    label: "Iron & Gold only",
     types: [
       "minecraft:iron_pickaxe",
       "minecraft:golden_pickaxe",
-      "minecraft:copper_pickaxe",
     ],
   },
   {

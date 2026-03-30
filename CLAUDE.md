@@ -94,7 +94,7 @@ Versions follow `major.minor.patch`. **Always bump the patch digit** by default 
 - HarvestGuard: `HarvestGuard/manifest.json` — version in the `header` section
 - ZipIt: `ZipIt/manifest.json` — current version **1.1.0**
 - Deep Dark Survival Kit: `Deep Dark Survival Kit/manifest.json` — current version **1.0.3**
-- OreDetector: `OreDetector/manifest.json` — current version **1.0.7**
+- OreDetector: `OreDetector/manifest.json` — current version **1.0.8**
 
 ---
 
@@ -262,9 +262,9 @@ Order in `ORE_LIST` controls display order before distance sort is applied.
 
 ### Pickaxe tier groups (`data/pickaxe_groups.js`)
 4 groups selectable in settings:
-- **All Pickaxes** (default) — wooden through netherite
-- **Wooden & Stone only**
-- **Iron, Gold & Copper only**
+- **All Pickaxes** (default) — all 7 pickaxe types
+- **Wooden, Stone & Copper only**
+- **Iron & Gold only**
 - **Diamond & Netherite only**
 
 `settings.pickaxeGroup` stores the selected index (0–3). `main.js` resolves the active type list via `PICKAXE_GROUPS[groupIdx].types`.

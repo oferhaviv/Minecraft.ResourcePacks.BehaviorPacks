@@ -234,9 +234,9 @@ While holding a pickaxe, scans the area around you for nearby ores and shows a l
 
 | Index | Group | Pickaxes |
 |-------|-------|----------|
-| 0 | All Pickaxes (default) | Wooden, Stone, Iron, Golden, Diamond, Netherite |
-| 1 | Wooden & Stone only | Wooden, Stone |
-| 2 | Iron, Gold & Copper only | Iron, Golden, Copper |
+| 0 | All Pickaxes (default) | Wooden, Stone, Copper, Iron, Golden, Diamond, Netherite |
+| 1 | Wooden, Stone & Copper only | Wooden, Stone, Copper |
+| 2 | Iron & Gold only | Iron, Golden |
 | 3 | Diamond & Netherite only | Diamond, Netherite |
 
 ### Installation
